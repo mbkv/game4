@@ -120,25 +120,19 @@ temp_alloc_debug()
 
 
 
-
-
-
-// thank you gingerBill
+// inspired by gingerBill's version
 // https://www.gingerbill.org/article/2015/08/19/defer-in-cpp/
 
+#define UNIQUE_VARIABLE_NAME_1(x, y) x##y
+#define UNIQUE_VARIABLE_NAME_2(x, y) UNIQUE_VARIABLE_NAME_1(x, y)
+#define UNIQUE_VARIABLE_NAME(x)    UNIQUE_VARIABLE_NAME_2(x, __COUNTER__)
+
+
 template <typename F>
-struct privDefer {
+struct defer_t {
 	F f;
-	privDefer(F f) : f(f) {}
-	~privDefer() { f(); }
+	defer_t(F f) : f(f) {}
+	~defer_t() { f(); }
 };
 
-template <typename F>
-privDefer<F> defer_func(F f) {
-	return privDefer<F>(f);
-}
-
-#define DEFER_1(x, y) x##y
-#define DEFER_2(x, y) DEFER_1(x, y)
-#define DEFER_3(x)    DEFER_2(x, __COUNTER__)
-#define defer(code)   auto DEFER_3(_defer_) = defer_func([&](){code;})
+#define defer(code)   defer_t UNIQUE_VARIABLE_NAME(_defer_) {[&](){code;}}

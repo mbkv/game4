@@ -15,14 +15,13 @@ read_entire_file(const char *filename, allocator_t *allocator)
 	defer(fclose(f));
 
 	fseek(f, 0, SEEK_END);
-
 	long fsize = ftell(f);
-	fseek(f, 0, SEEK_SET);  /* same as rewind(f); */
+	rewind(f);
 
-	char *string = (char*)allocator->alloc(fsize + 1);
-	fread(string, fsize, 1, f);
+	char *s = (char*)allocator->alloc(fsize + 1);
+	fread(s, fsize, 1, f);
 
-	string[fsize] = 0;
+	s[fsize] = 0;
 
-	return {string, (u64)fsize};
+	return {s, (u64)fsize};
 }
