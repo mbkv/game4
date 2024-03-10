@@ -3,7 +3,6 @@
 #include "./util.hpp"
 #include <GL/glew.h>
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_opengl.h>
 #include <SDL2/SDL_video.h>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
@@ -29,14 +28,15 @@ static bool make_window(glm::vec2 window_size)
 		return false;
 	}
 
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+
 	context = SDL_GL_CreateContext(win);
 	if (context == nullptr) {
 		fprintf(stderr, "SDL_GL_CreateContext Error: %s\n", SDL_GetError());
 		return false;
 	}
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 	glewExperimental = true;
 	GLenum glew_err = glewInit();
 	if (glew_err != GLEW_OK) {
@@ -51,11 +51,11 @@ int main()
 {
 	defer(temp_alloc_debug());
 
-	asset_tinyobj asset = asset_tinyobj_parse("./res/box.obj");
+	/* asset_tinyobj asset = asset_tinyobj_parse("./res/box.obj"); */
 
-	defer(asset_cleanup(asset));
+	/* defer(asset_cleanup(asset)); */
 
-	glm::vec2 window_size { 1280, 720 };
+	glm::vec2 window_size { 1920, 1080 };
 	if (!make_window(window_size)) {
 		return EXIT_FAILURE;
 	}
@@ -64,8 +64,16 @@ int main()
 
 	gl_init();
 	GLuint program = gl_shader_load("./res/shaders/game.vs", "./res/shaders/game.fs", &temp_allocator);
+	GLuint ui_program = gl_shader_load("./res/shaders/ui.vs", "./res/shaders/ui.fs", &temp_allocator);
 
-	glUseProgram(program);
+	GLint ui_program_screen_size = glGetUniformLocation(ui_program, "uScreenSize");
+
+	glUseProgram(ui_program);
+	glUniform2f(ui_program_screen_size, window_size[0], window_size[1]);
+
+	asset_image img = asset_image_load_rgb("./res/box texture.png", &temp_allocator);
+	GLuint texture = gl_texture_load(&img);
+	gl_asset asset = gl_ui_rect_load({ 100.0, 100.0, ((f32)img.w * 3), ((f32)img.h * 3) }, { 0.0, 0.0, 1.0, 1.0 });
 
 	bool running = true;
 	SDL_Event evt;
@@ -79,7 +87,14 @@ int main()
 			}
 		}
 
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		glBindTexture(GL_TEXTURE_2D, texture);
+		gl_asset_draw(&asset);
+
 		temp_alloc_freeall();
+		SDL_GL_SwapWindow(win);
+		return EXIT_SUCCESS;
 	}
 
 	return EXIT_SUCCESS;

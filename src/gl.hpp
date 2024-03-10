@@ -9,29 +9,41 @@
 
 void gl_init()
 {
+	glClearColor(220.0 / 255.0, 220.0 / 255.0, 255.0 / 255.0, 1.0);
 	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_BACK);
+	/* glEnable(GL_CULL_FACE); */
+	/* glCullFace(GL_BACK); */
 }
 
 struct gl_asset {
+	GLuint EBO;
 	GLuint VBO;
 	GLuint VAO;
+	u32 index_size;
 };
+
+void gl_asset_draw(gl_asset *asset)
+{
+	glBindVertexArray(asset->VAO);
+	glDrawElements(GL_TRIANGLES, asset->index_size, GL_UNSIGNED_SHORT, 0);
+}
 
 gl_asset
 gl_asset_load(asset_tinyobj asset)
 {
-	// VBO and VAO handles
-	GLuint VBO, VAO;
+	GLuint EBO, VBO, VAO;
 
-	// Vertex data
 	float vertices[] = {
 		// Positions         // Texture Coords
 		0.5f, 0.5f, 0.0f, 1.0f, 1.0f,
 		0.5f, -0.5f, 0.0f, 1.0f, 0.0f,
 		-0.5f, -0.5f, 0.0f, 0.0f, 0.0f,
 		-0.5f, 0.5f, 0.0f, 0.0f, 1.0f
+	};
+
+	u16 indexes[] = {
+		0, 1, 2,
+		2, 3, 0,
 	};
 
 	// Generate VAO and bind it
@@ -43,6 +55,11 @@ gl_asset_load(asset_tinyobj asset)
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
+	// Generate VBO and bind it
+	glGenBuffers(1, &EBO);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(indexes), indexes, GL_STATIC_DRAW);
+
 	// Define vertex attributes
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
@@ -50,7 +67,80 @@ gl_asset_load(asset_tinyobj asset)
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 	glEnableVertexAttribArray(1);
 
-	return { VBO, VAO };
+	return {
+		.EBO = EBO,
+		.VBO = VBO,
+		.VAO = VAO,
+		.index_size = ARRAY_LEN(indexes),
+	};
+}
+
+struct ui_rect {
+	f32 x;
+	f32 y;
+	f32 w;
+	f32 h;
+};
+
+gl_asset
+gl_ui_rect_load(ui_rect rect, ui_rect text_rect)
+{
+	GLuint EBO, VBO, VAO;
+
+	float vertices[] = {
+		// Positions         // Texture Coords
+		rect.x, rect.y, text_rect.x, text_rect.y,
+		rect.x + rect.w, rect.y, text_rect.x + text_rect.w, text_rect.y,
+		rect.x + rect.w, rect.y + rect.h, text_rect.x + text_rect.w, text_rect.y + text_rect.h,
+		rect.x, rect.y + rect.h, text_rect.x, text_rect.y + text_rect.h,
+	};
+
+	u16 indexes[] = {
+		0, 1, 2,
+		2, 3, 0,
+	};
+
+	// Generate VAO and bind it
+	glGenVertexArrays(1, &VAO);
+	glBindVertexArray(VAO);
+
+	glGenBuffers(1, &VBO);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+	glGenBuffers(1, &EBO);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indexes), indexes, GL_STATIC_DRAW);
+
+	// Define vertex attributes
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+	glEnableVertexAttribArray(1);
+
+	return {
+		.EBO = EBO,
+		.VBO = VBO,
+		.VAO = VAO,
+		.index_size = ARRAY_LEN(indexes),
+	};
+}
+
+GLuint
+gl_texture_load(asset_image *img)
+{
+	assert(img->data);
+	GLuint texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, img->w, img->h, 0, GL_RGB, GL_UNSIGNED_BYTE, img->data);
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR); 
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	return texture;
 }
 
 GLuint
@@ -58,6 +148,9 @@ gl_shader_load(const char* vs, const char* fs, allocator_t* allocator)
 {
 	str vertex_source = read_entire_file(vs, allocator);
 	str fragment_source = read_entire_file(fs, allocator);
+
+	assert(vertex_source.s);
+	assert(fragment_source.s);
 
 	// Shader program handle
 	GLuint program;
@@ -104,7 +197,7 @@ gl_shader_load(const char* vs, const char* fs, allocator_t* allocator)
 		defer(allocator->free(log));
 
 		glGetProgramInfoLog(program, max_length, &log_length, log);
-		fprintf(stderr, "Shader error!!!\n");
+		fprintf(stderr, "Shader error!!!: %s - %s\n", vs, fs);
 		fprintf(stderr, "program log: %s\n", log);
 		if (vertex_success == GL_FALSE) {
 			glGetShaderInfoLog(vertex_shader, max_length, &log_length, log);

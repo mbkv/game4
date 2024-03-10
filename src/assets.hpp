@@ -7,14 +7,16 @@
 #include "./string.hpp"
 #include "./util.hpp"
 
-#define TINYOBJ_LOADER_C_IMPLEMENTATION
 #define TINYOBJ_MALLOC temp_alloc
 #define TINYOBJ_REALLOC temp_alloc_realloc
 #define TINYOBJ_CALLOC temp_calloc
 #define TINYOBJ_FREE temp_alloc_free
 #include "tinyobj_loader_c.h"
 
-#define STB_IMAGE_IMPLEMENTATION
+
+#define STBI_MALLOC temp_alloc
+#define STBI_REALLOC temp_alloc_realloc
+#define STBI_FREE temp_alloc_free
 #include "stb_image.h"
 
 static void tinyobj_file_reader_impl(void* ctx, const char* filename,
@@ -22,6 +24,7 @@ static void tinyobj_file_reader_impl(void* ctx, const char* filename,
 	char** buf, size_t* len)
 {
 	str file = read_entire_file(filename, &temp_allocator);
+	assert(file.s);
 	*buf = file.s;
 	*len = file.len;
 }
@@ -49,4 +52,31 @@ void asset_cleanup(asset_tinyobj& asset)
 	tinyobj_attrib_free(&asset.attrib);
 	tinyobj_shapes_free(asset.shapes, asset.num_shapes);
 	tinyobj_materials_free(asset.materials, asset.num_materials);
+}
+
+struct asset_image
+{
+	u8 *data;
+	int w;
+	int h;
+	int channels;
+};
+
+asset_image asset_image_load_rgb(const char * filename, allocator_t *allocator)
+{
+	str file = read_entire_file(filename, allocator);
+	assert(file.s);
+	defer(read_entire_file_free(&file, allocator));
+
+	int x;
+	int y;
+	int channels_in_file;
+	int desired_channels = 3;
+	u8* image = stbi_load_from_memory((u8 *)file.s, file.len, &x, &y, &channels_in_file, desired_channels);
+	return {
+		.data = image,
+		.w = x,
+		.h = y,
+		.channels = desired_channels,
+	};
 }

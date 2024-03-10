@@ -7,11 +7,12 @@ rootpath="$(realpath $(dirname "$0"))"
 buildpath="$rootpath/build"
 mainpath="$rootpath/src/main.cpp"
 
-library_flags="-lpthread -lSDL2 -lGLEW -lGL -lX11"
+library_flags="-lpthread -lSDL2 -lGLEW -lGL -lX11 -lm -ldl"
 include_flags="-I$rootpath/vendor"
-warning_flags="-Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wdouble-promotion -Wno-missing-field-initializers"
+warning_flags="-Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-missing-field-initializers"
 optimization_flags="-ffast-math -fassociative-math -fno-exceptions -fno-unwind-tables -fno-asynchronous-unwind-tables"
-compiler_flags="-std=c++2b $library_flags $include_flags $warning_flags $optimization_flags"
+define_flags="-DTINYOBJ_LOADER_C_IMPLEMENTATION -DSTB_IMAGE_IMPLEMENTATION"
+compiler_flags="-std=c++2b $library_flags $include_flags $warning_flags $define_flags $optimization_flags"
 compiler_debug_flags="$compiler_flags -O0 -ggdb3 -march=native -DDEBUG -DSLOW -o game_debug"
 
 mkdir "$buildpath" -p

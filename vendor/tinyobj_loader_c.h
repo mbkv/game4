@@ -1,4 +1,3 @@
-#define TINYOBJ_LOADER_C_IMPLEMENTATION
 /*
    The MIT License (MIT)
 

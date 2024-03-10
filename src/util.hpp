@@ -15,7 +15,12 @@ typedef int16_t s16;
 typedef int32_t s32;
 typedef int64_t s64;
 
+typedef float f32;
+typedef double f64;
+
 #define force_inline __attribute__((always_inline)) static inline
+
+#define ARRAY_LEN(x) ((sizeof(x)) / (sizeof(x[0])))
 
 static_assert(sizeof(size_t) >= sizeof(void*), "This file assumes size_t can hold a void*");
 static_assert(sizeof(size_t) == sizeof(u64), "This file assumes size_t is u64");

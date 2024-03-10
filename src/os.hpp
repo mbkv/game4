@@ -24,3 +24,14 @@ read_entire_file(const char* filename, allocator_t* allocator)
 
 	return { s, (u64)fsize };
 }
+
+void
+read_entire_file_free(str *file, allocator_t* allocator)
+{
+	assert(file);
+	assert(file->s);
+
+	allocator->free(file->s);
+	file->s = nullptr;
+	file->len = 0;
+}
