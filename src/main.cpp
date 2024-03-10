@@ -1,6 +1,8 @@
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_video.h>
 #include <GL/glew.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_video.h>
+#include <SDL2/SDL_opengl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <glm/vec2.hpp>
@@ -8,6 +10,7 @@
 #include "./util.hpp"
 #include "./vendors.hpp"
 #include "./assets.hpp"
+#include "./gl.hpp"
 
 SDL_Window* win;
 SDL_GLContext context;
@@ -34,6 +37,10 @@ static bool make_window(glm::vec2 window_size) {
 		fprintf(stderr, "SDL_GL_CreateContext Error: %s\n", SDL_GetError());
 		return false;
 	}
+    SDL_GL_SetAttribute( SDL_GL_CONTEXT_MAJOR_VERSION, 4 );
+    SDL_GL_SetAttribute( SDL_GL_CONTEXT_MINOR_VERSION, 6 );
+    SDL_GL_SetAttribute( SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE );
+	glewExperimental = true;
 	GLenum glew_err = glewInit();
 	if (glew_err != GLEW_OK) {
 		fprintf(stderr, "glewInit Error: %s\n", glewGetErrorString(glew_err));
@@ -43,75 +50,49 @@ static bool make_window(glm::vec2 window_size) {
 	return true;
 }
 
-void gl_init()
-{
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
-}
-
-void
-tinyobj_file_reader_impl(void * ctx, const char * filename, int is_mtl, const char * obj_filename, char **buf, size_t *len)
-{
-	auto file = read_entire_file(filename, temp_alloc);
-	*buf = file.data;
-	*len = file.length;
-	
-}
-
-
 int main()
 {
-	string_t box = read_entire_file((char *)"./res/box.obj", temp_alloc);
-	defer(temp_alloc_freeall());
 	defer(temp_alloc_debug());
-	tinyobj_attrib_t attrib;
-	tinyobj_shape_t *shapes;
-	size_t num_shapes;
-	tinyobj_material_t *materials;
-	size_t num_materials;
 
 
-	tinyobj_parse_obj(&attrib, &shapes, &num_shapes, &materials, &num_materials, 
-			"res/box.obj",
-			tinyobj_file_reader_impl, nullptr, 0);
-	defer({
-		tinyobj_attrib_free(&attrib);
-		tinyobj_shapes_free(shapes, num_shapes);
-		tinyobj_materials_free(materials, num_materials);
-	});
-	printf("%s", box.data);
-	
+	asset_tinyobj asset = asset_tinyobj_parse("./res/box.obj");
 
-	/* glm::vec2 window_size{1280, 720}; */
-	/* if (!make_window(window_size)) { */
-	/* 	return EXIT_FAILURE; */
-	/* } */
+	defer(asset_cleanup(asset));
 
-	/* gl_init(); */
 
-	/* defer(SDL_Quit()); */
+	glm::vec2 window_size{1280, 720};
+	if (!make_window(window_size)) {
+		return EXIT_FAILURE;
+	}
 
-	/* bool running = true; */
-	/* SDL_Event evt; */
+	defer(SDL_Quit());
+
+	gl_init();
+	GLuint program = gl_shader_load("./res/shaders/game.vs", "./res/shaders/game.fs", &temp_allocator);
+
+	glUseProgram(program);
+
+
+	bool running = true;
+	SDL_Event evt;
 
 
 
-	/* while (running) { */
-	/* 	while (SDL_PollEvent(&evt)) { */
-	/* 		switch (evt.type) { */
-	/* 			case SDL_QUIT: */
-	/* 				running = false; */
-	/* 				break; */
-	/* 		} */
+	while (running) {
+		while (SDL_PollEvent(&evt)) {
+			switch (evt.type) {
+				case SDL_QUIT:
+					running = false;
+					break;
+			}
 
 
-	/* 	} */
+		}
 
 
 		
-		
-	/* } */
+		temp_alloc_freeall();
+	}
 
 
 
