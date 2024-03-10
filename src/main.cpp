@@ -1,7 +1,6 @@
 #include "./assets.hpp"
 #include "./gl.hpp"
 #include "./util.hpp"
-#include "./vendors.hpp"
 #include <GL/glew.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
