@@ -34,9 +34,6 @@ force_inline u8 *roundup_by_power2(u8 *value, u8 exponent) {
     return (u8 *)roundup_by_power2((u64)value, exponent);
 }
 
-// inspired by gingerBill's version
-// https://www.gingerbill.org/article/2015/08/19/defer-in-cpp/
-
 #define UNIQUE_VARIABLE_NAME_1(x, y) x##y
 #define UNIQUE_VARIABLE_NAME_2(x, y) UNIQUE_VARIABLE_NAME_1(x, y)
 #define UNIQUE_VARIABLE_NAME(x) UNIQUE_VARIABLE_NAME_2(x, __COUNTER__)

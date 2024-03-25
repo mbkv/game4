@@ -81,16 +81,16 @@ struct global_context : allocator_t {
 const global_context _alloc_ctx{{malloc, calloc, realloc, free}, temp_allocator};
 const global_context _temp_ctx{{temp_allocator}, temp_allocator};
 
-bool _global_ctx_is_temporary = 0;
+bool _global_ctx_is_temporary = false;
 global_context const *global_ctx = &_alloc_ctx;
 
-void _global_ctx_noop() {}
-void global_ctx_set_default() {
+static void _global_ctx_noop() {}
+static void global_ctx_set_default() {
     _global_ctx_is_temporary = false;
     global_ctx = &_alloc_ctx;
 }
 
-auto global_ctx_set_temporary() {
+static defer_t<void (*)()> global_ctx_set_temporary() {
     if (_global_ctx_is_temporary) {
         return defer_t{_global_ctx_noop};
     }
@@ -100,3 +100,6 @@ auto global_ctx_set_temporary() {
 
     return defer_t{global_ctx_set_default};
 }
+
+#define global_ctx_set_scope_temporary()                                               \
+    auto UNIQUE_VARIABLE_NAME(scoped_temporary) = global_ctx_set_temporary()

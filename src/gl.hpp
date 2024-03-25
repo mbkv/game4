@@ -10,15 +10,16 @@
 #include "./os.hpp"
 #include "./util.hpp"
 
-void gl_init() {
+static void gl_init() {
     glClearColor(220.0 / 255.0, 220.0 / 255.0, 255.0 / 255.0, 1.0);
-    glEnable(GL_DEPTH_TEST);
+    /* glEnable(GL_DEPTH_TEST); */
     /* glEnable(GL_CULL_FACE); */
     /* glCullFace(GL_BACK); */
 }
 
-void gl_get_all_uniform_locations(GLuint program,
-                                  std::unordered_map<std::string, GLint> &uniforms) {
+typedef std::unordered_map<std::string, GLint> Uniforms;
+
+static void gl_get_all_uniform_locations(GLuint program, Uniforms &uniforms) {
     GLint num_uniforms;
     glGetProgramiv(program, GL_ACTIVE_UNIFORMS, &num_uniforms);
 
@@ -29,60 +30,54 @@ void gl_get_all_uniform_locations(GLuint program,
         GLsizei actual_length = 0;
         glGetActiveUniform(program, uniform, 256, &actual_length, &array_size, &type,
                            name_data);
+        GLint location = glGetUniformLocation(program, name_data);
+        uniforms[name_data] = location;
     }
 }
 
-struct gl_asset {
+struct gl_draw_object {
     GLuint EBO;
     GLuint VBO;
     GLuint VAO;
-    u32 index_size;
+    u32 count;
 };
 
-void gl_asset_draw(gl_asset *asset) {
+static void gl_asset_draw(gl_draw_object *asset) {
     glBindVertexArray(asset->VAO);
-    glDrawElements(GL_TRIANGLES, asset->index_size, GL_UNSIGNED_SHORT, 0);
+    glDrawElements(GL_TRIANGLES, asset->count, GL_UNSIGNED_SHORT, 0);
 }
 
-gl_asset gl_asset_load(asset_tinyobj asset) {
-    GLuint EBO, VBO, VAO;
+static gl_draw_object gl_asset_load(const char *filename) {
+    global_ctx_set_scope_temporary();
+    gl_draw_object mesh;
+    fastObjMesh *objmesh = fast_obj_read(filename);
+    assert(objmesh);
 
-    float vertices[] = {// Positions         // Texture Coords
-                        0.5f,  0.5f,  0.0f, 1.0f, 1.0f, 0.5f,  -0.5f, 0.0f, 1.0f, 0.0f,
-                        -0.5f, -0.5f, 0.0f, 0.0f, 0.0f, -0.5f, 0.5f,  0.0f, 0.0f, 1.0f};
+    mesh.count = objmesh->index_count;
 
-    u16 indexes[] = {
-        0, 1, 2, 2, 3, 0,
-    };
+    glGenVertexArrays(1, &mesh.VAO);
+    glBindVertexArray(mesh.VAO);
 
-    // Generate VAO and bind it
-    glGenVertexArrays(1, &VAO);
-    glBindVertexArray(VAO);
+    u64 position_size = objmesh->position_count * sizeof(float) * 3;
+    u64 texture_coord_size = objmesh->texcoord_count * sizeof(float) * 2;
+    glGenBuffers(1, &mesh.VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, mesh.VBO);
+    glBufferData(GL_ARRAY_BUFFER, position_size + texture_coord_size,
+                 objmesh->positions, GL_STATIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, position_size, texture_coord_size,
+                    objmesh->texcoords);
 
-    // Generate VBO and bind it
-    glGenBuffers(1, &VBO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    glGenBuffers(1, &mesh.EBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, objmesh->index_count * sizeof(unsigned int),
+                 objmesh->indices, GL_STATIC_DRAW);
 
-    // Generate VBO and bind it
-    glGenBuffers(1, &EBO);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(indexes), indexes, GL_STATIC_DRAW);
-
-    // Define vertex attributes
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void *)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
     glEnableVertexAttribArray(0);
-
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float),
-                          (void *)(3 * sizeof(float)));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float),
+                          (void *)position_size);
     glEnableVertexAttribArray(1);
-
-    return {
-        .EBO = EBO,
-        .VBO = VBO,
-        .VAO = VAO,
-        .index_size = ARRAY_LEN(indexes),
-    };
+    return mesh;
 }
 
 struct ui_rect {
@@ -92,7 +87,7 @@ struct ui_rect {
     f32 h;
 };
 
-gl_asset gl_ui_rect_load(ui_rect rect, ui_rect text_rect) {
+static gl_draw_object gl_ui_rect_load(ui_rect rect, ui_rect text_rect) {
     GLuint EBO, VBO, VAO;
 
     float vertices[] = {
@@ -143,11 +138,11 @@ gl_asset gl_ui_rect_load(ui_rect rect, ui_rect text_rect) {
         .EBO = EBO,
         .VBO = VBO,
         .VAO = VAO,
-        .index_size = ARRAY_LEN(indexes),
+        .count = ARRAY_LEN(indexes),
     };
 }
 
-GLuint gl_texture_load(asset_image *img) {
+static GLuint gl_texture_load(asset_image *img) {
     assert(img->data);
     GLuint texture;
     glGenTextures(1, &texture);
@@ -162,8 +157,8 @@ GLuint gl_texture_load(asset_image *img) {
     return texture;
 }
 
-GLuint gl_shader_load(const char *vs, const char *fs) {
-    const auto defer_lock = global_ctx_set_temporary();
+static GLuint gl_shader_load(const char *vs, const char *fs) {
+    global_ctx_set_scope_temporary();
     str vertex_source = read_entire_file(vs);
     str fragment_source = read_entire_file(fs);
 

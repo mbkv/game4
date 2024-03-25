@@ -24,7 +24,7 @@ static str read_entire_file(const char *filename) {
     return {s, (u64)fsize};
 }
 
-void read_entire_file_free(str *file) {
+static void read_entire_file_free(str *file) {
     assert(file);
     assert(file->s);
 

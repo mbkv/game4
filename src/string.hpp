@@ -3,7 +3,7 @@
 #include "./util.hpp"
 #include <stdio.h>
 
-constexpr u32 fnv1a_32(const char *s) {
+static constexpr u32 fnv1a_32(const char *s) {
     u32 prime = 16777619;
     u32 offset = 2166136261;
 
@@ -16,7 +16,7 @@ constexpr u32 fnv1a_32(const char *s) {
     return hash;
 }
 
-constexpr u64 fnv1a_64(const char *s) {
+static constexpr u64 fnv1a_64(const char *s) {
     u64 prime = 1099511628211ull;
     u64 offset = 14695981039346656037ull;
 

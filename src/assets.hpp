@@ -8,6 +8,10 @@
 #include "./string.hpp"
 #include "./util.hpp"
 
+#define FAST_OBJ_REALLOC global_ctx->realloc
+#define FAST_OBJ_FREE global_ctx->free
+#include "fast_obj.h"
+
 #define TINYOBJ_MALLOC global_ctx->alloc
 #define TINYOBJ_REALLOC global_ctx->realloc
 #define TINYOBJ_CALLOC global_ctx->calloc
@@ -20,9 +24,9 @@
 #include "stb_image.h"
 
 static void _tinyobj_file_reader_impl(void *ctx, const char *filename, int is_mtl,
-                                     const char *obj_filename, char **buf,
-                                     size_t *len) {
-    auto defer_lock = global_ctx_set_temporary();
+                                      const char *obj_filename, char **buf,
+                                      size_t *len) {
+    global_ctx_set_scope_temporary();
 
     str file = read_entire_file(filename);
     assert(file.s);
@@ -47,7 +51,11 @@ static asset_tinyobj asset_tinyobj_parse(const char *filename) {
     return asset;
 }
 
-void asset_cleanup(asset_tinyobj &asset) {
+/* fastObjMesh* thing(const char* filename) { */
+/* 	return fast_obj_read(filename); */
+/* } */
+
+static void asset_cleanup(asset_tinyobj &asset) {
     tinyobj_attrib_free(&asset.attrib);
     tinyobj_shapes_free(asset.shapes, asset.num_shapes);
     tinyobj_materials_free(asset.materials, asset.num_materials);
@@ -60,8 +68,8 @@ struct asset_image {
     int channels;
 };
 
-asset_image asset_image_load_rgb(const char *filename) {
-    auto defer_lock = global_ctx_set_temporary();
+static asset_image asset_image_load_rgb(const char *filename) {
+    global_ctx_set_scope_temporary();
     str file = read_entire_file(filename);
     assert(file.s);
 
