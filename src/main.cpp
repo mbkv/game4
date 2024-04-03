@@ -5,6 +5,7 @@
 #include <GL/glew.h>
 #include <SDL2/SDL.h>
 #include <glm/ext.hpp>
+#include <glm/fwd.hpp>
 #include <glm/glm.hpp>
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,7 +60,7 @@ int main() {
     gl_init();
 
     glm::mat4 camera =
-        glm::lookAt(glm::vec3{3, 0, 3}, glm::vec3{0, 0, 0}, glm::vec3{0, 1, 0});
+        glm::lookAt(glm::vec3{-5, 2, -1.5}, glm::vec3{0, 0, 0}, glm::vec3{0, 1, 0});
 
     glm::mat4 position = glm::identity<glm::mat4>();
 
@@ -68,7 +69,7 @@ int main() {
 
     /* asset_tinyobj asset_box = asset_tinyobj_parse("./res/box textured.obj"); */
     /* gl_asset x = gl_asset_load(asset_box); */
-    gl_draw_object asset_box = gl_asset_load("./res/box textured.obj");
+    gl_draw_object asset_box = gl_asset_load("./res/bathroom/bathroom.obj");
 
     /* /1* defer(asset_cleanup(asset_box)); *1/ */
 
@@ -96,6 +97,9 @@ int main() {
     gl_draw_object asset_texture_box = gl_ui_rect_load(
         {100.0, 100.0, ((f32)img.w * 3), ((f32)img.h * 3)}, {0.0, 0.0, 1.0, 1.0});
 
+    const f32 MAX_VIEWING_ANGLE = 3.14159 * .95;
+    glm::vec2 viewing_angle{PI / 2, PI / 2};
+
     bool running = true;
     SDL_Event evt;
 
@@ -115,11 +119,16 @@ int main() {
                     glGetIntegerv(GL_POLYGON_MODE, &polygonMode);
                     if (polygonMode == GL_LINE) {
                         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+                        glEnable(GL_CULL_FACE);
                     } else {
+                        glDisable(GL_CULL_FACE);
                         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
                     }
                 }
                 break;
+            case SDL_MOUSEMOTION:
+                viewing_angle[0] += evt.motion.xrel / 100.0f;
+                viewing_angle[1] += evt.motion.yrel / 100.0f;
             }
         }
 

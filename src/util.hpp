@@ -17,6 +17,9 @@ typedef int64_t s64;
 typedef float f32;
 typedef double f64;
 
+#define PI 3.141592
+#define TAU (PI * 2)
+
 #define force_inline __attribute__((always_inline)) static inline
 
 #define ARRAY_LEN(x) ((sizeof(x)) / (sizeof(x[0])))
@@ -32,6 +35,16 @@ force_inline size_t roundup_by_power2(u64 value, u8 exponent) {
 
 force_inline u8 *roundup_by_power2(u8 *value, u8 exponent) {
     return (u8 *)roundup_by_power2((u64)value, exponent);
+}
+
+template <typename T> force_inline T clamp(T value, T a, T b) {
+    if (value < a) {
+        return a;
+    }
+    if (value > b) {
+        return b;
+    }
+    return value;
 }
 
 #define UNIQUE_VARIABLE_NAME_1(x, y) x##y

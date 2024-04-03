@@ -12,9 +12,9 @@
 
 static void gl_init() {
     glClearColor(220.0 / 255.0, 220.0 / 255.0, 255.0 / 255.0, 1.0);
-    /* glEnable(GL_DEPTH_TEST); */
-    /* glEnable(GL_CULL_FACE); */
-    /* glCullFace(GL_BACK); */
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
 }
 
 typedef std::unordered_map<std::string, GLint> Uniforms;
@@ -44,7 +44,7 @@ struct gl_draw_object {
 
 static void gl_asset_draw(gl_draw_object *asset) {
     glBindVertexArray(asset->VAO);
-    glDrawElements(GL_TRIANGLES, asset->count, GL_UNSIGNED_SHORT, 0);
+    glDrawElements(GL_TRIANGLES, asset->count, GL_UNSIGNED_INT, 0);
 }
 
 static gl_draw_object gl_asset_load(const char *filename) {
@@ -53,29 +53,47 @@ static gl_draw_object gl_asset_load(const char *filename) {
     fastObjMesh *objmesh = fast_obj_read(filename);
     assert(objmesh);
 
+    for (u32 i = 0; i < objmesh->face_count; i++) {
+        assert(objmesh->face_vertices[i] == 3);
+    }
+
+    f32 *vertex_buffer =
+        (f32 *)global_ctx->temp.alloc(objmesh->index_count * sizeof(f32) * 5);
+    u32 *index_buffer =
+        (u32 *)global_ctx->temp.alloc(objmesh->index_count * sizeof(u32));
+
+    for (u32 i = 0; i < objmesh->index_count; i++) {
+        fastObjIndex indexes = objmesh->indices[i];
+
+        vertex_buffer[i * 5 + 0] = objmesh->positions[indexes.p * 3 + 0];
+        vertex_buffer[i * 5 + 1] = objmesh->positions[indexes.p * 3 + 1];
+        vertex_buffer[i * 5 + 2] = objmesh->positions[indexes.p * 3 + 2];
+        vertex_buffer[i * 5 + 3] = objmesh->texcoords[indexes.t * 2 + 0];
+        vertex_buffer[i * 5 + 4] = objmesh->texcoords[indexes.t * 2 + 1];
+    }
+    for (u32 i = 0; i < objmesh->index_count; i++) {
+        index_buffer[i] = i;
+    }
+
     mesh.count = objmesh->index_count;
 
     glGenVertexArrays(1, &mesh.VAO);
     glBindVertexArray(mesh.VAO);
 
-    u64 position_size = objmesh->position_count * sizeof(float) * 3;
-    u64 texture_coord_size = objmesh->texcoord_count * sizeof(float) * 2;
     glGenBuffers(1, &mesh.VBO);
     glBindBuffer(GL_ARRAY_BUFFER, mesh.VBO);
-    glBufferData(GL_ARRAY_BUFFER, position_size + texture_coord_size,
-                 objmesh->positions, GL_STATIC_DRAW);
-    glBufferSubData(GL_ARRAY_BUFFER, position_size, texture_coord_size,
-                    objmesh->texcoords);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(f32) * 5 * objmesh->index_count, vertex_buffer,
+                 GL_STATIC_DRAW);
 
     glGenBuffers(1, &mesh.EBO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, objmesh->index_count * sizeof(unsigned int),
-                 objmesh->indices, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, objmesh->index_count * sizeof(u32),
+                 index_buffer, GL_STATIC_DRAW);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(f32), (void *)0);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float),
-                          (void *)position_size);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(f32),
+                          (void *)(3 * sizeof(f32)));
     glEnableVertexAttribArray(1);
     return mesh;
 }
@@ -110,7 +128,7 @@ static gl_draw_object gl_ui_rect_load(ui_rect rect, ui_rect text_rect) {
         text_rect.y + text_rect.h,
     };
 
-    u16 indexes[] = {
+    u32 indexes[] = {
         0, 1, 2, 2, 3, 0,
     };
 

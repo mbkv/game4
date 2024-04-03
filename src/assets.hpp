@@ -72,6 +72,7 @@ static asset_image asset_image_load_rgb(const char *filename) {
     global_ctx_set_scope_temporary();
     str file = read_entire_file(filename);
     assert(file.s);
+    stbi_set_flip_vertically_on_load(true);
 
     int x;
     int y;
