@@ -60,45 +60,20 @@ int main() {
     gl_init();
 
     glm::mat4 camera =
-        glm::lookAt(glm::vec3{-5, 2, -1.5}, glm::vec3{0, 0, 0}, glm::vec3{0, 1, 0});
-
+        glm::lookAt(glm::vec3{-3, 3, -3}, glm::vec3{0, 0, 0}, glm::vec3{0, 1, 0});
     glm::mat4 position = glm::identity<glm::mat4>();
-
     glm::mat4 projection =
         glm::perspective(glm::radians(45.0f), 1920.0f / 1080.0f, 0.1f, 100.0f);
 
-    /* asset_tinyobj asset_box = asset_tinyobj_parse("./res/box textured.obj"); */
-    /* gl_asset x = gl_asset_load(asset_box); */
-    gl_draw_object asset_box = gl_asset_load("./res/bathroom/bathroom.obj");
-
-    /* /1* defer(asset_cleanup(asset_box)); *1/ */
+    gl_draw_object asset_box = gl_asset_load("./res/box textured.obj");
 
     GLuint program = gl_shader_load("./res/shaders/game.vs", "./res/shaders/game.fs");
     Uniforms program_uniforms;
     gl_get_all_uniform_locations(program, program_uniforms);
+
     glUseProgram(program);
-
-    /* GLuint ui_program = gl_shader_load("./res/shaders/ui.vs",
-     * "./res/shaders/ui.fs");
-     */
-
-    /* /1* GLint ui_program_screen_size = glGetUniformLocation(ui_program,
-     * "uScreenSize"); *1/ */
-    /* Uniforms ui_program_uniforms; */
-    /* gl_get_all_uniform_locations(ui_program, ui_program_uniforms); */
-
-    /* glUseProgram(ui_program); */
-    /* glUniform2f(ui_program_uniforms["uScreenSize"], window_size[0],
-     * window_size[1]);
-     */
-
     asset_image img = asset_image_load_rgb("./res/box texture.png");
     GLuint asset_texture = gl_texture_load(&img);
-    gl_draw_object asset_texture_box = gl_ui_rect_load(
-        {100.0, 100.0, ((f32)img.w * 3), ((f32)img.h * 3)}, {0.0, 0.0, 1.0, 1.0});
-
-    const f32 MAX_VIEWING_ANGLE = 3.14159 * .95;
-    glm::vec2 viewing_angle{PI / 2, PI / 2};
 
     bool running = true;
     SDL_Event evt;
@@ -126,9 +101,6 @@ int main() {
                     }
                 }
                 break;
-            case SDL_MOUSEMOTION:
-                viewing_angle[0] += evt.motion.xrel / 100.0f;
-                viewing_angle[1] += evt.motion.yrel / 100.0f;
             }
         }
 
