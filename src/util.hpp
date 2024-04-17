@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
+#include <type_traits>
 
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -26,15 +27,12 @@ typedef double f64;
 
 template <typename T> force_inline T max(T a, T b) { return a > b ? a : b; }
 
-force_inline size_t roundup_by_power2(u64 value, u8 exponent) {
+template <typename T>
+force_inline T roundup_by_power2(T value, size_t power2) {
+    static_assert(std::is_integral<T>());
     // hackers delight chapter 3 p1
-    u64 power2 = 1 << exponent;
     value += power2 - 1;
     return value & -power2;
-}
-
-force_inline u8 *roundup_by_power2(u8 *value, u8 exponent) {
-    return (u8 *)roundup_by_power2((u64)value, exponent);
 }
 
 template <typename T> force_inline T clamp(T value, T a, T b) {
@@ -61,3 +59,5 @@ template <typename F> struct defer_t {
     defer_t UNIQUE_VARIABLE_NAME(_defer_) {                                            \
         [&]() { code; }                                                                \
     }
+
+force_inline f32 to_radians(f32 degrees) { return degrees / 180 * PI; }
