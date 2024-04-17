@@ -20,10 +20,9 @@ struct arena_t {
     size_t arena_size;
 };
 
-
 static arena_t arena_make(size_t bytes_requested) {
-    arena_t arena {};
-    arena._arena = (uintptr_t) malloc(bytes_requested);
+    arena_t arena{};
+    arena._arena = (uintptr_t)malloc(bytes_requested);
     arena._start = arena._arena;
     arena.arena_size = bytes_requested;
 
@@ -32,7 +31,8 @@ static arena_t arena_make(size_t bytes_requested) {
 
 static void *arena_alloc(arena_t *arena, size_t bytes_requested) {
     // assert there's even size to give back;
-    const size_t total_size_after_allocation = arena->_arena - arena->_start + bytes_requested;
+    const size_t total_size_after_allocation =
+        arena->_arena - arena->_start + bytes_requested;
     if (total_size_after_allocation > arena->arena_size) {
         fprintf(stderr, "Arena allocator %p is out of memory", arena);
         return nullptr;
@@ -45,7 +45,7 @@ static void *arena_alloc(arena_t *arena, size_t bytes_requested) {
     arena->_arena = roundup_by_power2(arena->_arena, 16);
     assert(arena->_arena % 16 == 0);
     void *return_value = (void *)arena->_arena;
-    size_t *size_value = ((size_t *)arena->_arena) - 1;
+    size_t *size_value = ((size_t *)return_value) - 1;
     *size_value = bytes_requested;
     arena->_arena += bytes_requested;
     return return_value;
@@ -60,11 +60,9 @@ static void *arena_calloc(arena_t *arena, size_t number_members, size_t size) {
     return ptr;
 }
 
-static void arena_freeall(arena_t *arena) {
-    arena->_arena = arena->_start;
-}
+static void arena_freeall(arena_t *arena) { arena->_arena = arena->_start; }
 
-static void *arena_realloc(arena_t * arena, void *ptr, size_t size) {
+static void *arena_realloc(arena_t *arena, void *ptr, size_t size) {
     if (size == 0) {
         // don't need to free since this is an arena
         return nullptr;
@@ -97,9 +95,7 @@ static void *global_arena_calloc(size_t number_members, size_t size) {
 }
 
 // ~some~ most apis need a free along side an alloc
-static void global_arena_free(void * ptr) {
-
-}
+static void global_arena_free(void *ptr) {}
 
 static void global_arena_freeall() { arena_freeall(&global_arena_ctx); }
 
@@ -107,10 +103,7 @@ static void *global_arena_realloc(void *ptr, size_t size) {
     return arena_realloc(&global_arena_ctx, ptr, size);
 }
 
-static void global_arena_debug()
-{
-    arena_debug(&global_arena_ctx);
-}
+static void global_arena_debug() { arena_debug(&global_arena_ctx); }
 
 static allocator_t temp_allocator{global_arena_alloc, global_arena_calloc,
                                   global_arena_realloc, global_arena_free};
