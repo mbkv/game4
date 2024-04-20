@@ -1,12 +1,47 @@
 #include "./handles.hpp"
 #include "./profiler.hpp"
+#include "rand.hpp"
 #include <cstdlib>
+
+template<typename T>
+void printBinary(T value) {
+    static_assert(std::is_unsigned<T>::value, "T must be an unsigned integer type");
+    unsigned shift = sizeof(T) * 8 - 1;
+    char buffer[sizeof(T) * 8 + 1];
+    buffer[sizeof(T) * 8] = '\0';
+    while (shift > 0) {
+        buffer[shift] = (value & 1) ? '1' : '0';
+        value >>= 1;
+        --shift;
+    }
+    buffer[shift] = (value & 1) ? '1' : '0';
+    printf("%s", buffer);
+}
 
 int main() {
     handle_pool_t pool;
-    handle_pool_create(&pool, 32768, 0b1111);
+    {
+    profile(1);
+    handle_pool_create(&pool, 32768, 0b0111);
+    }
 
     handle_t handles[32768] = {};
+
+    xorshift64_state rng_state{0xdeadbeef};
+    u64 *rngs = (u64 *)malloc(sizeof(u64) * 1 << 20);;
+
+    {
+        profile(1 << 20);
+
+        for( int i = 0; i < (1 << 20); i++) {
+            rngs[i] = xorshift64(&rng_state);
+        }
+    }
+    {
+        for (int i = 0; i < (1 << 20); i++) {
+            printf("%lu\n", rngs[i]);
+        }
+    }
 
     {
         profile(32768);
@@ -15,6 +50,7 @@ int main() {
             handles[i] = handle_index_create(&pool);
         }
     }
+
     {
         profile(32768 * 32);
 

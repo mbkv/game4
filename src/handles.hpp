@@ -6,6 +6,7 @@
 #include "./span.hpp"
 #include "./util.hpp"
 #include "bits.hpp"
+#include "rand.hpp"
 #include <climits>
 #include <cstdint>
 #include <cstdlib>
@@ -26,7 +27,7 @@ struct handle_pool_t {
     u16 slot_cursor;
 
 #ifdef SLOW
-    span<handle_t> handle_ids;
+    span<u8> handle_ids;
     u8 bits_used;
     u8 type;
 #endif
@@ -49,8 +50,22 @@ static void handle_pool_create(handle_pool_t *pool, u16 number_members, u8 type)
     assert(most_significant_bit(type) <= HANDLE_TYPE_BITS);
 
     pool->type = type;
-    handle_t *id_allocations =
-        (handle_t *)global_ctx->calloc(number_members, sizeof(handle_t));
+    u8 *id_allocations =
+        (u8 *)global_ctx->alloc(number_members * sizeof(u8));
+
+    // randomize ids at the start
+    assert(sizeof(decltype(*id_allocations)) == 1);
+    assert(sizeof(u64) == 8);
+    assert(number_members % 8 == 0);
+
+    u64 *u64_ids = (u64 *) id_allocations;
+    size_t u64_ids_len = number_members / 8;
+    xorshift64_state state{0xDEADBEEF};
+    for (size_t i = 0; i < u64_ids_len; i++) {
+        u64_ids[i] = xorshift64(&state);
+    }
+
+
     pool->handle_ids = {id_allocations, number_members};
 
     pool->bits_used = most_significant_bit(number_members - 1);
@@ -123,8 +138,9 @@ static void handle_index_destroy(handle_pool_t *pool, handle_t handle) {
 
     size_t cursor = index / 64;
     size_t bit = index % 64;
+    u64 bit_mask = 1ll << bit;
 
     u64 &slots = pool->available_slots[cursor];
-    assert((slots & (1ll << bit)) == 0);
-    slots |= 1ll << bit;
+    assert((slots & bit_mask) == 0);
+    slots |= bit_mask;
 }
