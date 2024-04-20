@@ -1,20 +1,85 @@
+#include "./handles.hpp"
+#include "./profiler.hpp"
+#include <cstdlib>
+
+int main() {
+    handle_pool_t pool;
+    handle_pool_create(&pool, 32768, 0b1111);
+
+    handle_t handles[32768] = {};
+
+    {
+        profile(32768);
+
+        for (int i = 0; i < 32768; i++) {
+            handles[i] = handle_index_create(&pool);
+        }
+    }
+    {
+        profile(32768 * 32);
+
+        for (int j = 0; j < 32; j++) {
+            for (int i = 0; i < 32768; i++) {
+                handle_index_t index = handle_index_get(&pool, handles[i]);
+
+                assert(index < 32768);
+            }
+        }
+    }
+
+    {
+        profile(32768);
+
+        for (int i = 0; i < 32768; i++) {
+            handle_index_destroy(&pool, handles[i]);
+        }
+    }
+    {
+        profile(32768 * 128);
+        for (int j = 0; j < 128; j++) {
+
+            for (int i = 0; i < 32768; i++) {
+                handles[i] = handle_index_create(&pool);
+            }
+            for (int i = 0; i < 32768; i++) {
+                handle_index_destroy(&pool, handles[i]);
+            }
+        }
+    }
+
+    {
+        profile(1 << 20);
+        for (int i = 0; i < (1 << 20); i++) {
+            handle_t handle = handle_index_create(&pool);
+
+            handle_index_destroy(&pool, handle);
+        }
+    }
+    return EXIT_SUCCESS;
+}
+
+#if 0
 #include "./alloc_ctx.hpp"
 #include "./assets.hpp"
 #include "./gl.hpp"
+#include "./handles.hpp"
 #include "./util.hpp"
+#include "linalg.h"
 #include <GL/glew.h>
 #include <SDL2/SDL.h>
-#include <glm/ext.hpp>
-#include <glm/fwd.hpp>
-#include <glm/glm.hpp>
+#include <SDL2/SDL_video.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 SDL_Window *win;
 SDL_GLContext context;
 
-static bool make_window(glm::vec2 window_size) {
-    if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
+typedef linalg::vec<f32, 2> vec2;
+typedef linalg::vec<f32, 3> vec3;
+typedef linalg::mat<f32, 4, 4> mat4;
+
+static bool make_window(vec2 window_size) {
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
         return false;
     }
@@ -28,9 +93,9 @@ static bool make_window(glm::vec2 window_size) {
         return false;
     }
 
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 
     context = SDL_GL_CreateContext(win);
     if (context == nullptr) {
@@ -48,9 +113,7 @@ static bool make_window(glm::vec2 window_size) {
 }
 
 int main() {
-    defer(temp_alloc_debug());
-
-    glm::vec2 window_size{1920, 1080};
+    vec2 window_size{1920, 1080};
     if (!make_window(window_size)) {
         return EXIT_FAILURE;
     }
@@ -59,11 +122,11 @@ int main() {
 
     gl_init();
 
-    glm::mat4 camera =
-        glm::lookAt(glm::vec3{-3, 3, -3}, glm::vec3{0, 0, 0}, glm::vec3{0, 1, 0});
-    glm::mat4 position = glm::identity<glm::mat4>();
-    glm::mat4 projection =
-        glm::perspective(glm::radians(45.0f), 1920.0f / 1080.0f, 0.1f, 100.0f);
+    mat4 camera = linalg::lookat_matrix(vec3{-3, 3, -3}, vec3{0, 0, 0}, vec3{0, 1, 0});
+    ;
+    mat4 position = linalg::identity_t{4};
+    mat4 projection =
+        linalg::perspective_matrix(to_radians(45.0f), 1920.0f / 1080.0f, 0.1f, 100.0f);
 
     gl_draw_object asset_box = gl_asset_load("./res/box textured.obj");
 
@@ -78,7 +141,7 @@ int main() {
     bool running = true;
     SDL_Event evt;
 
-    temp_alloc_debug();
+    global_arena_debug();
 
     while (running) {
         while (SDL_PollEvent(&evt)) {
@@ -89,17 +152,6 @@ int main() {
             case SDL_KEYDOWN:
                 if (evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE)
                     running = false;
-                if (evt.key.keysym.scancode == SDL_SCANCODE_F4) {
-                    GLint polygonMode;
-                    glGetIntegerv(GL_POLYGON_MODE, &polygonMode);
-                    if (polygonMode == GL_LINE) {
-                        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-                        glEnable(GL_CULL_FACE);
-                    } else {
-                        glDisable(GL_CULL_FACE);
-                        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-                    }
-                }
                 break;
             }
         }
@@ -115,9 +167,10 @@ int main() {
                            &position[0][0]);
         gl_asset_draw(&asset_box);
 
-        temp_alloc_freeall();
+        global_arena_freeall();
         SDL_GL_SwapWindow(win);
     }
 
     return EXIT_SUCCESS;
 }
+#endif

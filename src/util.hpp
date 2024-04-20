@@ -18,7 +18,7 @@ typedef int64_t s64;
 typedef float f32;
 typedef double f64;
 
-#define PI 3.141592
+#define PI 3.141592f
 #define TAU (PI * 2)
 
 #define force_inline __attribute__((always_inline)) static inline
@@ -27,12 +27,27 @@ typedef double f64;
 
 template <typename T> force_inline T max(T a, T b) { return a > b ? a : b; }
 
-template <typename T>
-force_inline T roundup_by_power2(T value, size_t power2) {
+force_inline bool is_power2(u64 power2) {
+    bool is_power2 = (power2 & (power2 - 1)) == 0;
+
+    return is_power2;
+}
+
+template <typename T> force_inline T roundup_by_power2(T value, u64 power2) {
     static_assert(std::is_integral<T>());
+#if SLOW
+    assert(is_power2(power2));
+#endif
     // hackers delight chapter 3 p1
     value += power2 - 1;
     return value & -power2;
+}
+
+template <typename T> force_inline T divide_roundup(T value, T divisor) {
+    static_assert(std::is_integral<T>());
+    T rounded_up = (value + divisor - 1) / divisor;
+
+    return rounded_up;
 }
 
 template <typename T> force_inline T clamp(T value, T a, T b) {
@@ -60,4 +75,7 @@ template <typename F> struct defer_t {
         [&]() { code; }                                                                \
     }
 
-force_inline f32 to_radians(f32 degrees) { return degrees / 180 * PI; }
+force_inline f32 to_radians(f32 degrees) {
+    f32 radians = degrees / 180.0f * PI;
+    return radians;
+}

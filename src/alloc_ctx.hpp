@@ -20,13 +20,17 @@ struct arena_t {
     size_t arena_size;
 };
 
-static arena_t arena_make(size_t bytes_requested) {
+static arena_t arena_create(size_t bytes_requested) {
     arena_t arena{};
     arena._arena = (uintptr_t)malloc(bytes_requested);
     arena._start = arena._arena;
     arena.arena_size = bytes_requested;
 
     return arena;
+}
+
+static void arena_destroy(arena_t *arena) {
+    free((void*)arena->_arena);
 }
 
 static void *arena_alloc(arena_t *arena, size_t bytes_requested) {
@@ -84,7 +88,7 @@ static void arena_debug(arena_t *arena) {
     printf("temp_alloc allocated size: %ld\n", arena->_arena - arena->_start);
 }
 
-static arena_t global_arena_ctx = arena_make(MAX_TEMP_ALLOC_SIZE);
+static arena_t global_arena_ctx = arena_create(MAX_TEMP_ALLOC_SIZE);
 
 static void *global_arena_alloc(size_t bytes_requested) {
     return arena_alloc(&global_arena_ctx, bytes_requested);
