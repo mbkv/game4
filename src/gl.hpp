@@ -5,10 +5,10 @@
 #include <string>
 #include <unordered_map>
 
-#include "./alloc_ctx.hpp"
-#include "./assets.hpp"
-#include "./os.hpp"
-#include "./util.hpp"
+#include "src/alloc_ctx.hpp"
+#include "src/assets.hpp"
+#include "src/os.hpp"
+#include "src/util.hpp"
 
 static void gl_init() {
     glClearColor(220.0 / 255.0, 220.0 / 255.0, 255.0 / 255.0, 1.0);

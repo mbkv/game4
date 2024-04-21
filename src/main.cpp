@@ -1,6 +1,6 @@
-#include "./handles.hpp"
-#include "./profiler.hpp"
-#include "rand.hpp"
+#include "src/handles.hpp"
+#include "src/profiler.hpp"
+#include "src/rand.hpp"
 #include <cstdlib>
 
 template<typename T>
@@ -27,14 +27,15 @@ int main() {
 
     handle_t handles[32768] = {};
 
-    xorshift64_state rng_state{0xdeadbeef};
+#if 0
+    rand64_state rng_state{0xdeadbeef};
     u64 *rngs = (u64 *)malloc(sizeof(u64) * 1 << 20);;
 
     {
         profile(1 << 20);
 
         for( int i = 0; i < (1 << 20); i++) {
-            rngs[i] = xorshift64(&rng_state);
+            rngs[i] = rand64(&rng_state);
         }
     }
     {
@@ -42,12 +43,23 @@ int main() {
             printf("%lu\n", rngs[i]);
         }
     }
+#endif
 
     {
         profile(32768);
 
         for (int i = 0; i < 32768; i++) {
             handles[i] = handle_index_create(&pool);
+        }
+    }
+    {
+        for (int i = 0; i < 32768; i++) {
+            printBinary(handles[i]);
+            putchar(' ');
+
+            handle_index_t index = handle_index_get(&pool, handles[i]);
+            printBinary(index);
+            putchar('\n');
         }
     }
 
@@ -95,11 +107,11 @@ int main() {
 }
 
 #if 0
-#include "./alloc_ctx.hpp"
-#include "./assets.hpp"
-#include "./gl.hpp"
-#include "./handles.hpp"
-#include "./util.hpp"
+#include "alloc_ctx.hpp"
+#include "assets.hpp"
+#include "gl.hpp"
+#include "handles.hpp"
+#include "util.hpp"
 #include "linalg.h"
 #include <GL/glew.h>
 #include <SDL2/SDL.h>

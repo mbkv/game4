@@ -3,25 +3,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "./alloc_ctx.hpp"
-#include "./os.hpp"
-#include "./string.hpp"
-#include "./util.hpp"
+#include "src/alloc_ctx.hpp"
+#include "src/os.hpp"
+#include "src/string.hpp"
+#include "src/util.hpp"
 
 #define FAST_OBJ_REALLOC global_ctx->realloc
 #define FAST_OBJ_FREE global_ctx->free
-#include "fast_obj.h"
+#include "vendor/fast_obj.h"
 
 #define TINYOBJ_MALLOC global_ctx->alloc
 #define TINYOBJ_REALLOC global_ctx->realloc
 #define TINYOBJ_CALLOC global_ctx->calloc
 #define TINYOBJ_FREE global_ctx->free
-#include "tinyobj_loader_c.h"
+#include "vendor/tinyobj_loader_c.h"
 
 #define STBI_MALLOC global_ctx->alloc
 #define STBI_REALLOC global_ctx->realloc
 #define STBI_FREE global_ctx->free
-#include "stb_image.h"
+#include "vendor/stb_image.h"
 
 static void _tinyobj_file_reader_impl(void *ctx, const char *filename, int is_mtl,
                                       const char *obj_filename, char **buf,
@@ -87,3 +87,4 @@ static asset_image asset_image_load_rgb(const char *filename) {
         .channels = desired_channels,
     };
 }
+

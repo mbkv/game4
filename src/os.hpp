@@ -1,9 +1,16 @@
 #pragma once
+#ifndef EMSCRIPTEN
+#define EMSCRIPTEN 1
+#endif
 
-#include "./alloc_ctx.hpp"
-#include "./string.hpp"
+#include "src/alloc_ctx.hpp"
+#include "src/string.hpp"
 #include <stdio.h>
+#ifdef EMSCRIPTEN
+static str read_entire_file(const char *filename) { return {0, 0}; }
 
+static void read_entire_file_free(str *file) {}
+#else
 static str read_entire_file(const char *filename) {
     FILE *f = fopen(filename, "rb");
     if (f == nullptr) {
@@ -32,3 +39,4 @@ static void read_entire_file_free(str *file) {
     file->s = nullptr;
     file->len = 0;
 }
+#endif

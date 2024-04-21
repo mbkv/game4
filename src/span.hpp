@@ -1,6 +1,6 @@
 #pragma once
 
-#include "./util.hpp"
+#include "src/util.hpp"
 
 template <typename T>
 struct span {

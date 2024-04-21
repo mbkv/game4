@@ -1,6 +1,6 @@
 #pragma once
 
-#include "./util.hpp"
+#include "src/util.hpp"
 #include <stdio.h>
 #include <x86intrin.h>
 

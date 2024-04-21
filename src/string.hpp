@@ -1,6 +1,6 @@
 #pragma once
 
-#include "./util.hpp"
+#include "src/util.hpp"
 #include <stdio.h>
 
 static constexpr u32 fnv1a_32(const char *s) {
