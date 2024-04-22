@@ -29,9 +29,7 @@ static arena_t arena_create(size_t bytes_requested) {
     return arena;
 }
 
-static void arena_destroy(arena_t *arena) {
-    free((void*)arena->_arena);
-}
+static void arena_destroy(arena_t *arena) { free((void *)arena->_arena); }
 
 static void *arena_alloc(arena_t *arena, size_t bytes_requested) {
     // assert there's even size to give back;
@@ -128,7 +126,12 @@ static void global_ctx_set_default() {
     global_ctx = &_alloc_ctx;
 }
 
-static defer_t<void (*)()> global_ctx_set_temporary() {
+static void global_ctx_set_temporary() {
+    _global_ctx_is_temporary = true;
+    global_ctx = &_temp_ctx;
+}
+
+static defer_t<void (*)()> _global_ctx_temp_lock() {
     if (_global_ctx_is_temporary) {
         return defer_t{_global_ctx_noop};
     }
@@ -139,5 +142,5 @@ static defer_t<void (*)()> global_ctx_set_temporary() {
     return defer_t{global_ctx_set_default};
 }
 
-#define global_ctx_set_scope_temporary()                                               \
-    auto UNIQUE_VARIABLE_NAME(scoped_temporary) = global_ctx_set_temporary()
+#define global_ctx_temp_lock()                                                    \
+    auto UNIQUE_VARIABLE_NAME(scoped_temporary) = _global_ctx_temp_lock()

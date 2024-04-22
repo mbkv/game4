@@ -48,7 +48,8 @@ static void gl_asset_draw(gl_draw_object *asset) {
 }
 
 static gl_draw_object gl_asset_load(const char *filename) {
-    global_ctx_set_scope_temporary();
+    global_ctx_temp_lock();
+
     gl_draw_object mesh;
     fastObjMesh *objmesh = fast_obj_read(filename);
     assert(objmesh);
@@ -176,7 +177,7 @@ static GLuint gl_texture_load(asset_image *img) {
 }
 
 static GLuint gl_shader_load(const char *vs, const char *fs) {
-    global_ctx_set_scope_temporary();
+    global_ctx_temp_lock();
     str vertex_source = read_entire_file(vs);
     str fragment_source = read_entire_file(fs);
 

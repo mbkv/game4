@@ -1,6 +1,6 @@
 #pragma once
 
-#include "src/emscripten.hpp"
+#include "src/async.hpp"
 #include "src/os.hpp"
 
 #if 0
@@ -34,7 +34,7 @@ handle_pool_t downloaded_files;
 static void _tinyobj_file_reader_impl(void *ctx, const char *filename, int is_mtl,
                                       const char *obj_filename, char **buf,
                                       size_t *len) {
-    global_ctx_set_scope_temporary();
+    global_ctx_temp_lock();
 
     str file = read_entire_file(filename);
     assert(file.s);
@@ -77,7 +77,7 @@ struct asset_image {
 };
 
 static asset_image asset_image_load_rgb(const char *filename) {
-    global_ctx_set_scope_temporary();
+    global_ctx_temp_lock();
     str file = read_entire_file(filename);
     assert(file.s);
     stbi_set_flip_vertically_on_load(true);
@@ -97,23 +97,37 @@ static asset_image asset_image_load_rgb(const char *filename) {
 }
 #endif
 
-static size_t running_downloads = 0;
+struct _assets_init_data {
+    size_t running_downloads = 0;
+    next_fn next;
+};
 
 static void assets_init(const char **assets_to_download, size_t asset_len,
                         next_fn next) {
-    file_reader reader = [](const char *response, void *user_data) {
-        running_downloads -= 1;
-        if (running_downloads == 0) {
-            next_fn next = (next_fn)user_data;
+    global_ctx_set_temporary();
+    _assets_init_data *my_data = (_assets_init_data *) global_ctx->alloc(sizeof(_assets_init_data));
+    my_data->running_downloads = asset_len;
+    my_data->next = next;
+
+    file_reader reader = [](const char *response, const char* filename, void *user_data) {
+        _assets_init_data *my_data = (_assets_init_data *)user_data;
+        my_data->running_downloads -= 1;
+        if (my_data->running_downloads == 0) {
+            global_ctx_set_default();
+            next_fn next = my_data->next;
             next();
         }
     };
-    error_handler handler = [](void *) {
-        fprintf(stderr, "Error file not found\n");
+    error_handler handler = [](const char* filename, void *) {
+        // idk if this can be null?
+        if (filename) {
+            fprintf(stderr, "Error downloading file %s\n", filename);
+        } else {
+            fprintf(stderr, "Error downloading file\n");
+        }
         exit(1);
     };
     for (size_t i = 0; i < asset_len; i++) {
-        running_downloads += 1;
-        read_entire_file_async(assets_to_download[i], reader, handler, (void *)next);
+        read_entire_file_async(assets_to_download[i], reader, handler, (void *)my_data);
     }
 }

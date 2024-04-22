@@ -10,8 +10,8 @@
 #include <stdio.h>
 #include <unordered_map>
 
-typedef void (*file_reader)(const char *file, void *user_data);
-typedef void (*error_handler)(void *user_data);
+typedef void (*file_reader)(const char *file, const char *filename, void *user_data);
+typedef void (*error_handler)(const char *filename, void *user_data);
 
 struct _read_entire_file_async_user_data {
     file_reader on_success;
@@ -24,6 +24,7 @@ static std::unordered_map<void *, emscripten_fetch_t *> _fetch_cleanup_info;
 static void _read_entire_file_async_success(emscripten_fetch_t *fetch) {
     _read_entire_file_async_user_data *my_data =
         (_read_entire_file_async_user_data *)fetch->userData;
+    emscripten_debugger();
 
     void *user_data = my_data->user_data;
     file_reader on_success = my_data->on_success;
@@ -31,7 +32,7 @@ static void _read_entire_file_async_success(emscripten_fetch_t *fetch) {
 
     _fetch_cleanup_info[(void *)response] = fetch;
 
-    on_success(response, user_data);
+    on_success(response, fetch->url, user_data);
 }
 
 static void _read_entire_file_async_error(emscripten_fetch_t *fetch) {
@@ -40,7 +41,7 @@ static void _read_entire_file_async_error(emscripten_fetch_t *fetch) {
 
     void *user_data = my_data->user_data;
     error_handler on_error = my_data->on_error;
-    on_error(user_data);
+    on_error(fetch->url, user_data);
 
     emscripten_fetch_close(fetch);
 }
