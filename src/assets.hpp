@@ -1,10 +1,16 @@
 #pragma once
 
+#include "src/emscripten.hpp"
+#include "src/os.hpp"
+
+#if 0
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "emscripten/fetch.h"
 #include "src/alloc_ctx.hpp"
-#include "src/os.hpp"
+#include "src/emscripten.hpp"
+#include "src/handles.hpp"
 #include "src/string.hpp"
 #include "src/util.hpp"
 
@@ -22,6 +28,8 @@
 #define STBI_REALLOC global_ctx->realloc
 #define STBI_FREE global_ctx->free
 #include "vendor/stb_image.h"
+
+handle_pool_t downloaded_files;
 
 static void _tinyobj_file_reader_impl(void *ctx, const char *filename, int is_mtl,
                                       const char *obj_filename, char **buf,
@@ -87,4 +95,25 @@ static asset_image asset_image_load_rgb(const char *filename) {
         .channels = desired_channels,
     };
 }
+#endif
 
+static size_t running_downloads = 0;
+
+static void assets_init(const char **assets_to_download, size_t asset_len,
+                        next_fn next) {
+    file_reader reader = [](const char *response, void *user_data) {
+        running_downloads -= 1;
+        if (running_downloads == 0) {
+            next_fn next = (next_fn)user_data;
+            next();
+        }
+    };
+    error_handler handler = [](void *) {
+        fprintf(stderr, "Error file not found\n");
+        exit(1);
+    };
+    for (size_t i = 0; i < asset_len; i++) {
+        running_downloads += 1;
+        read_entire_file_async(assets_to_download[i], reader, handler, (void *)next);
+    }
+}

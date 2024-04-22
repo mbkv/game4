@@ -1,7 +1,6 @@
 #pragma once
 
 #include "src/alloc_ctx.hpp"
-#include "src/bitfield.hpp"
 #include "src/bits.hpp"
 #include "src/span.hpp"
 #include "src/util.hpp"

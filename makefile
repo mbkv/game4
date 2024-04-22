@@ -21,7 +21,7 @@ CFLAGS_DEBUG = -O0 \
                -g3 \
                -DDEBUG
 
-EMCC_FLAGS = --use-port=sdl2 -s USE_WEBGL2=1 -mrelaxed-simd 
+EMCC_FLAGS = --use-port=sdl2 -s USE_WEBGL2=1 -mrelaxed-simd -sFETCH -gsource-map
 
 include_files := $(wildcard src/*.hpp)
 
@@ -36,6 +36,12 @@ build/game_debug.html: src/main.cpp $(include_files) build
 
 build/res: build
 	ln -s $(CURDIR)/res $(CURDIR)/build/res
+
+build/src: build
+	ln -s $(CURDIR)/src $(CURDIR)/build/src
+
+build/vendor: build
+	ln -s $(CURDIR)/vendor $(CURDIR)/build/vendor
 
 clean:
 	rm -rf build

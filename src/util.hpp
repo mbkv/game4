@@ -26,6 +26,7 @@ typedef double f64;
 #define ARRAY_LEN(x) ((sizeof(x)) / (sizeof(x[0])))
 
 template <typename T> force_inline T max(T a, T b) { return a > b ? a : b; }
+template <typename T> force_inline T min(T a, T b) { return a < b ? a : b; }
 
 force_inline bool is_power2(u64 power2) {
     bool is_power2 = (power2 & (power2 - 1)) == 0;

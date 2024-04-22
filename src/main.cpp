@@ -1,3 +1,23 @@
+#include "stdio.h"
+#include "src/assets.hpp"
+#include "src/os.hpp"
+#include "src/util.hpp"
+
+int main() {
+    const char *files[] = {
+        resource_get_path("box texture.png"),
+        resource_get_path("shaders/game.fs"),
+        resource_get_path("shaders/game.vs"),
+        resource_get_path("shaders/ui.fs"),
+        resource_get_path("shaders/ui.vs"),
+    };
+
+    assets_init(files, ARRAY_LEN(files), [](){
+        printf("Finished downloading\n");
+    });
+}
+
+#if 0
 #include "src/handles.hpp"
 #include "src/profiler.hpp"
 #include "src/rand.hpp"
@@ -27,7 +47,6 @@ int main() {
 
     handle_t handles[32768] = {};
 
-#if 0
     rand64_state rng_state{0xdeadbeef};
     u64 *rngs = (u64 *)malloc(sizeof(u64) * 1 << 20);;
 
@@ -43,7 +62,6 @@ int main() {
             printf("%lu\n", rngs[i]);
         }
     }
-#endif
 
     {
         profile(32768);
@@ -105,14 +123,15 @@ int main() {
     }
     return EXIT_SUCCESS;
 }
+#endif
 
 #if 0
-#include "alloc_ctx.hpp"
-#include "assets.hpp"
-#include "gl.hpp"
-#include "handles.hpp"
-#include "util.hpp"
-#include "linalg.h"
+#include "src/alloc_ctx.hpp"
+#include "src/assets.hpp"
+#include "src/gl.hpp"
+#include "src/handles.hpp"
+#include "src/util.hpp"
+#include "vendor/linalg.h"
 #include <GL/glew.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_video.h>
@@ -160,6 +179,47 @@ static bool make_window(vec2 window_size) {
     return true;
 }
 
+mat4 camera = linalg::lookat_matrix(vec3{-3, 3, -3}, vec3{0, 0, 0}, vec3{0, 1, 0});
+mat4 position = linalg::identity_t{4};
+mat4 projection =
+    linalg::perspective_matrix(to_radians(45.0f), 1920.0f / 1080.0f, 0.1f, 100.0f);
+
+gl_draw_object asset_box;
+GLuint asset_texture;
+
+GLuint program;
+Uniforms program_uniforms;
+SDL_Event evt;
+bool running = true;
+
+void tick() {
+    while (SDL_PollEvent(&evt)) {
+        switch (evt.type) {
+        case SDL_QUIT:
+            running = false;
+            break;
+        case SDL_KEYDOWN:
+            if (evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE)
+                running = false;
+            break;
+        }
+    }
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glBindTexture(GL_TEXTURE_2D, asset_texture);
+    glUniformMatrix4fv(program_uniforms.at("uProjectionMatrix"), 1, GL_FALSE,
+                       &projection[0][0]);
+    glUniformMatrix4fv(program_uniforms.at("uViewMatrix"), 1, GL_FALSE,
+                       &camera[0][0]);
+    glUniformMatrix4fv(program_uniforms.at("uWorldMatrix"), 1, GL_FALSE,
+                       &position[0][0]);
+    gl_asset_draw(&asset_box);
+
+    global_arena_freeall();
+    SDL_GL_SwapWindow(win);
+}
+
 int main() {
     vec2 window_size{1920, 1080};
     if (!make_window(window_size)) {
@@ -170,54 +230,21 @@ int main() {
 
     gl_init();
 
-    mat4 camera = linalg::lookat_matrix(vec3{-3, 3, -3}, vec3{0, 0, 0}, vec3{0, 1, 0});
-    ;
-    mat4 position = linalg::identity_t{4};
-    mat4 projection =
-        linalg::perspective_matrix(to_radians(45.0f), 1920.0f / 1080.0f, 0.1f, 100.0f);
-
-    gl_draw_object asset_box = gl_asset_load("./res/box textured.obj");
-
-    GLuint program = gl_shader_load("./res/shaders/game.vs", "./res/shaders/game.fs");
-    Uniforms program_uniforms;
+    asset_box = gl_asset_load("box textured.obj");
+    program = gl_shader_load("shaders/game.vs", "shaders/game.fs");
     gl_get_all_uniform_locations(program, program_uniforms);
 
     glUseProgram(program);
-    asset_image img = asset_image_load_rgb("./res/box texture.png");
-    GLuint asset_texture = gl_texture_load(&img);
-
-    bool running = true;
-    SDL_Event evt;
+    asset_image img = asset_image_load_rgb("box texture.png");
+    asset_texture = gl_texture_load(&img);
 
     global_arena_debug();
 
+#ifdef EMSCRIPTEN
+#else
     while (running) {
-        while (SDL_PollEvent(&evt)) {
-            switch (evt.type) {
-            case SDL_QUIT:
-                running = false;
-                break;
-            case SDL_KEYDOWN:
-                if (evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE)
-                    running = false;
-                break;
-            }
-        }
-
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        glBindTexture(GL_TEXTURE_2D, asset_texture);
-        glUniformMatrix4fv(program_uniforms.at("uProjectionMatrix"), 1, GL_FALSE,
-                           &projection[0][0]);
-        glUniformMatrix4fv(program_uniforms.at("uViewMatrix"), 1, GL_FALSE,
-                           &camera[0][0]);
-        glUniformMatrix4fv(program_uniforms.at("uWorldMatrix"), 1, GL_FALSE,
-                           &position[0][0]);
-        gl_asset_draw(&asset_box);
-
-        global_arena_freeall();
-        SDL_GL_SwapWindow(win);
     }
+#endif
 
     return EXIT_SUCCESS;
 }
