@@ -26,21 +26,21 @@ EMCC_FLAGS = --use-port=sdl2 -s USE_WEBGL2=1 -mrelaxed-simd -sFETCH -gsource-map
 include_files := $(wildcard src/*.hpp)
 
 .PHONY: dev
-dev: build/game_debug.html build/res
+dev: build/game_debug.html | build build/res build/src build/vendor
 
 build:
 	mkdir -p build
 
-build/game_debug.html: src/main.cpp $(include_files) build
+build/game_debug.html: src/main.cpp $(include_files) | build
 	$(CC) $(CFLAGS) $(CFLAGS_DEBUG) $(EMCC_FLAGS) $< -o $@
 
-build/res: build
+build/res: | build
 	ln -s $(CURDIR)/res $(CURDIR)/build/res
 
-build/src: build
+build/src: | build
 	ln -s $(CURDIR)/src $(CURDIR)/build/src
 
-build/vendor: build
+build/vendor: | build
 	ln -s $(CURDIR)/vendor $(CURDIR)/build/vendor
 
 clean:
