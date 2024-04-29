@@ -1,40 +1,175 @@
 #pragma once
 
+#include "src/alloc_ctx.hpp"
 #include "src/util.hpp"
+#include "stringzilla.h"
 #include <stdio.h>
 
-static constexpr u32 fnv1a_32(const char *s) {
-    u32 prime = 16777619;
-    u32 offset = 2166136261;
+// so annoyed at needing this for the forward definition of std::hash...
+#include <functional>
 
-    u32 hash = offset;
-    while (*s) {
-        hash ^= *s;
-        hash *= prime;
-    }
-
-    return hash;
-}
-
-static constexpr u64 fnv1a_64(const char *s) {
-    u64 prime = 1099511628211ull;
-    u64 offset = 14695981039346656037ull;
-
-    u64 hash = offset;
-    while (*s) {
-        hash ^= *s;
-        hash *= prime;
-    }
-
-    return hash;
-}
-
-struct readonly_str {
-    const char *s;
-    u64 len;
+static sz_memory_allocator_t sz_allocator{
+    .allocate = [](size_t bytes, void *) { return global_ctx->alloc(bytes); },
+    .free = [](void *ptr, size_t, void *) { return global_ctx->free(ptr); },
 };
 
-struct str {
-    char *s;
-    u64 len;
+constexpr static size_t my_strlen(const char *s) {
+    const char *p = s;
+    while (*p)
+        p++;
+    return p - s;
+}
+
+template <typename char_type> struct _string_slice {
+    char_type *_string;
+    size_t _length;
+
+    constexpr _string_slice() : _string(nullptr), _length(0) {}
+    constexpr _string_slice(char_type *s) : _string(s), _length(my_strlen(s)) {}
+    constexpr _string_slice(char_type *s, size_t len) : _string(s), _length(len) {}
+
+    // some helper functions to avoid needing to get _inner
+    constexpr char_type *data() const { return _string; }
+    constexpr char_type *begin() const { return _string; }
+    constexpr char_type *end() const { return _string + _length; }
+    constexpr const char_type *cbegin() const { return _string; }
+    constexpr const char_type *cend() const { return _string + _length; }
+    constexpr size_t len() const { return _length; }
+    constexpr size_t size() const { return _length; }
+
+    constexpr char_type &operator[](size_t pos) { return this->data()[pos]; }
+};
+
+using string_view = _string_slice<const char>;
+using string_span = _string_slice<char>;
+
+struct string {
+    sz_string_t _inner;
+
+    constexpr string_view view() const { return string_view(*this); }
+    constexpr string_span span() const { return string_span(*this); }
+
+    constexpr char *data() const { return span().begin(); }
+    constexpr char *begin() const { return span().begin(); }
+    constexpr char *end() const { return span().end(); }
+    constexpr const char *cbegin() const { return view().begin(); }
+    constexpr const char *cend() const { return view().end(); }
+    constexpr size_t len() const { return view().len(); }
+    constexpr size_t size() const { return view().size(); }
+
+    constexpr operator string_view() const {
+        char *ptr;
+        size_t length;
+
+        sz_string_range(&_inner, &ptr, &length);
+
+        return string_view{ptr, length};
+    }
+
+    constexpr operator string_span() const {
+        char *ptr;
+        size_t length;
+
+        sz_string_range(&_inner, &ptr, &length);
+
+        return string_span{ptr, length};
+    }
+
+    constexpr char &operator[](size_t pos) { return this->data()[pos]; }
+};
+
+static inline string string_make(string_view view) {
+    string str;
+
+    char *ptr = sz_string_init_length(&str._inner, view.len(), &sz_allocator);
+    sz_copy(ptr, view.data(), view.len());
+
+    return str;
+}
+
+static string string_make(string str) { return string_make(str.view()); }
+
+static string string_make(const char *s, size_t length) {
+    return string_make(string_view(s, length));
+}
+
+static string string_make(const char *s) {
+    return string_make(string_view(s, strlen(s)));
+}
+
+constexpr static void string_destroy(string *str) {
+    sz_string_free(&str->_inner, &sz_allocator);
+}
+
+constexpr force_inline bool str_starts_with(string_view str, string_view prefix) {
+    return str.len() >= prefix.len() &&
+           sz_equal(str.begin(), prefix.begin(), prefix.len());
+}
+
+constexpr force_inline bool str_ends_with(string_view str, string_view prefix) {
+    return str.len() >= prefix.len() &&
+           sz_equal(str.end() - prefix.len(), prefix.begin(), prefix.len());
+}
+
+static string str_concat(string_view *views, size_t length) {
+    string str;
+
+    size_t char_sum = 0;
+    for (size_t i = 0; i < length; i++) {
+        char_sum += views[i].len();
+    }
+
+    char *to = sz_string_init_length(&str._inner, char_sum, &sz_allocator);
+    for (size_t i = 0; i < length; i++) {
+        const char *from = views[i].data();
+        size_t from_len = views[i].len();
+        sz_copy(to, from, from_len);
+        to += from_len;
+    }
+
+    return str;
+}
+
+static string str_join(string_view join_arg, string_view const *views, size_t length) {
+    string str;
+
+    if (length == 0) {
+        sz_string_init(&str._inner);
+        return str;
+    }
+
+    size_t char_sum = join_arg.len() * (length - 1);
+    for (size_t i = 0; i < length; i++) {
+        char_sum += views[i].len();
+    }
+
+    char *to = sz_string_init_length(&str._inner, char_sum, &sz_allocator);
+    sz_copy(to, views[0].data(), views[0].len());
+    to += views[0].len();
+
+    for (size_t i = 1; i < length; i++) {
+        sz_copy(to, join_arg.data(), join_arg.len());
+        to += join_arg.len();
+
+        sz_copy(to, views[i].data(), views[i].len());
+        to += views[i].len();
+    }
+
+
+    return str;
+}
+
+#define str_concat_inline(...)                                                         \
+    str_concat((string_view[]){__VA_ARGS__}, ARRAY_LEN(((string_view[]){__VA_ARGS__})))
+
+#define str_join_inline(joined_by, ...)                                                         \
+    str_join(joined_by, (string_view[]){__VA_ARGS__}, ARRAY_LEN(((string_view[]){__VA_ARGS__})))
+
+
+template <> struct std::hash<::string_view> {
+    size_t operator()(::string_view str) { return sz_hash(str.begin(), str.len()); }
+};
+
+template <> struct std::hash<::string> {
+    size_t operator()(::string str) { return sz_hash(str.begin(), str.len()); }
 };
