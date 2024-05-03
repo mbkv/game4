@@ -23,7 +23,7 @@ typedef double f64;
 
 #define force_inline __attribute__((always_inline)) static inline
 
-#define ARRAY_LEN(x) ((sizeof(x)) / (sizeof(x[0])))
+#define ARRAY_LEN(x) ((sizeof((x))) / (sizeof((x)[0])))
 
 template <typename T> force_inline T max(T a, T b) { return a > b ? a : b; }
 template <typename T> force_inline T min(T a, T b) { return a < b ? a : b; }

@@ -13,13 +13,13 @@
 static void gl_init() {
     glClearColor(220.0 / 255.0, 220.0 / 255.0, 255.0 / 255.0, 1.0);
     glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
+    // glEnable(GL_CULL_FACE);
+    // glCullFace(GL_BACK);
 }
 
 typedef std::unordered_map<std::string, GLint> Uniforms;
 
-static void gl_get_all_uniform_locations(GLuint program, Uniforms &uniforms) {
+static void gl_get_all_uniform_locations(GLuint program, Uniforms *uniforms) {
     GLint num_uniforms;
     glGetProgramiv(program, GL_ACTIVE_UNIFORMS, &num_uniforms);
 
@@ -31,7 +31,7 @@ static void gl_get_all_uniform_locations(GLuint program, Uniforms &uniforms) {
         glGetActiveUniform(program, uniform, 256, &actual_length, &array_size, &type,
                            name_data);
         GLint location = glGetUniformLocation(program, name_data);
-        uniforms[name_data] = location;
+        (*uniforms)[name_data] = location;
     }
 }
 
@@ -47,12 +47,13 @@ static void gl_asset_draw(gl_draw_object *asset) {
     glDrawElements(GL_TRIANGLES, asset->count, GL_UNSIGNED_INT, 0);
 }
 
-static gl_draw_object gl_asset_load(const char *filename) {
+static gl_draw_object gl_asset_load(string_view filename) {
     global_ctx_temp_lock();
 
     gl_draw_object mesh;
-    fastObjMesh *objmesh = fast_obj_read(filename);
+    fastObjMesh *objmesh = asset_fastobj_parse(filename);
     assert(objmesh);
+    defer(asset_cleanup(objmesh));
 
     for (u32 i = 0; i < objmesh->face_count; i++) {
         assert(objmesh->face_vertices[i] == 3);
@@ -139,6 +140,7 @@ static gl_draw_object gl_ui_rect_load(ui_rect rect, ui_rect text_rect) {
 
     glGenBuffers(1, &VBO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    emscripten_debugger();
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
     glGenBuffers(1, &EBO);
@@ -176,25 +178,19 @@ static GLuint gl_texture_load(asset_image *img) {
     return texture;
 }
 
-static GLuint gl_shader_load(const char *vs, const char *fs) {
+static GLuint gl_shader_load(string_view vs, string_view fs) {
     global_ctx_temp_lock();
-    str vertex_source = read_entire_file(vs);
-    str fragment_source = read_entire_file(fs);
-
-    assert(vertex_source.s);
-    assert(fragment_source.s);
-
     // Shader program handle
     GLuint program;
 
     // Load and compile vertex shader
     GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertex_shader, 1, &vertex_source.s, NULL);
+    glShaderSource(vertex_shader, 1, &vs.start, NULL);
     glCompileShader(vertex_shader);
 
     // Load and compile fragment shader
     GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragment_shader, 1, &fragment_source.s, NULL);
+    glShaderSource(fragment_shader, 1, &fs.start, NULL);
     glCompileShader(fragment_shader);
 
     // Link shaders and check for errors
@@ -228,21 +224,19 @@ static GLuint gl_shader_load(const char *vs, const char *fs) {
         char *log = (char *)global_ctx->alloc(max_length);
 
         glGetProgramInfoLog(program, max_length, &log_length, log);
-        fprintf(stderr, "Shader error!!!: %s - %s\n", vs, fs);
+        fprintf(stderr, "Shader error!!!:\n");
         fprintf(stderr, "program log: %s\n", log);
         if (vertex_success == GL_FALSE) {
             glGetShaderInfoLog(vertex_shader, max_length, &log_length, log);
-            fprintf(stderr, "vertex shader log: %s\n", log);
+            fprintf(stderr, "vertex shader: %s\nlog: %s\n", vs.begin(), log);
         }
         if (fragment_success == GL_FALSE) {
             glGetShaderInfoLog(fragment_shader, max_length, &log_length, log);
-            fprintf(stderr, "fragment shader log: %s\n", log);
+            fprintf(stderr, "fragment shader %s\nlog: %s\n", fs.begin(), log);
         }
         exit(1);
     }
 
-    // Delete shaders since they're linked into program now and no longer
-    // necessary
     glDeleteShader(vertex_shader);
     glDeleteShader(fragment_shader);
 

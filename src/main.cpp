@@ -1,21 +1,113 @@
-#include "stdio.h"
+#if 1
+#include <emscripten/emscripten.h>
 #include "src/assets.hpp"
+#include "src/async.hpp"
+#include "src/gl.hpp"
 #include "src/os.hpp"
-#include "src/util.hpp"
+#include "vendor/linalg.h"
+#include <emscripten.h>
+#include <emscripten/html5.h>
+#include <emscripten/html5_webgl.h>
+#include <src/string.hpp>
+#include <src/util.hpp>
+#include <webgl/webgl2.h>
+
+size_t frame_counter = 0;
+f32 start_time = -1;
+
+typedef linalg::vec<f32, 2> vec2;
+typedef linalg::vec<f32, 3> vec3;
+typedef linalg::mat<f32, 4, 4> mat4;
+
+EMSCRIPTEN_WEBGL_CONTEXT_HANDLE webgl;
+
+EM_JS(f32, canvas_set_size_properly, (const char *s, f32 x, f32 y), {
+    const canvas = document.querySelector(UTF8ToString(s, Infinity));
+    canvas.width = x;
+    canvas.height = y;
+    canvas.style.width = `${x / window.devicePixelRatio}px`;
+    canvas.style.height = `${y / window.devicePixelRatio}px`;
+})
+
+EM_JS(void, browser_alert, (const char *s), {alert(UTF8ToString(s, Infinity))})
+
+static const string_view canvas_selector{"#canvas"};
+
+static bool make_window(vec2 window_size) {
+    canvas_set_size_properly(canvas_selector.begin(), window_size.x, window_size.y);
+
+    EmscriptenWebGLContextAttributes attrs;
+    emscripten_webgl_init_context_attributes(&attrs);
+
+    webgl = emscripten_webgl_create_context(canvas_selector.begin(), &attrs);
+    if (!webgl) {
+        return false;
+    }
+    emscripten_webgl_make_context_current(webgl);
+
+    return true;
+}
+
+GLuint game_shader;
+GLuint ui_shader;
+Uniforms ui_uniforms;
+
+gl_draw_object cube;
+GLuint cube_texture;
+
+static EM_BOOL loop(double time, void *userData) {
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glUseProgram(ui_shader);
+    glUniform2f(ui_uniforms["uScreenSize"], 1920.0, 1080.0);
+    glBindTexture(GL_TEXTURE_2D, cube_texture);
+    gl_asset_draw(&cube);
+
+    return true;
+}
+
+static EM_BOOL loop_loading_check(double time, void *userData) {
+    if (total_running_downloads != 0) {
+        return true;
+    }
+
+    game_shader =
+        gl_shader_load(asset_downloaded_file_get(resource_get_path("shaders/game.vs")),
+                       asset_downloaded_file_get(resource_get_path("shaders/game.fs")));
+    ui_shader =
+        gl_shader_load(asset_downloaded_file_get(resource_get_path("shaders/ui.vs")),
+                       asset_downloaded_file_get(resource_get_path("shaders/ui.fs")));
+    gl_get_all_uniform_locations(ui_shader, &ui_uniforms);
+    cube = gl_ui_rect_load({100.0, 100.0, 400.0, 400.0}, {0.0, 0.0, 1.0, 1.0});
+
+    asset_image img = asset_image_load_rgb(resource_get_path("box texture.png"));
+    cube_texture = gl_texture_load(&img);
+
+    emscripten_request_animation_frame_loop(loop, nullptr);
+
+    return false;
+}
 
 int main() {
-    const char *files[] = {
-        resource_get_path("box texture.png"),
-        resource_get_path("shaders/game.fs"),
-        resource_get_path("shaders/game.vs"),
-        resource_get_path("shaders/ui.fs"),
-        resource_get_path("shaders/ui.vs"),
-    };
+    string_view files[] = {(resource_get_path("box texture.png")),
+                           (resource_get_path("box textured.obj")),
+                           (resource_get_path("box textured.mtl")),
+                           (resource_get_path("shaders/game.fs")),
+                           (resource_get_path("shaders/game.vs")),
+                           (resource_get_path("shaders/ui.fs")),
+                           (resource_get_path("shaders/ui.vs"))};
 
-    assets_init(files, ARRAY_LEN(files), [](){
-        printf("Finished downloading\n");
-    });
+
+    if (make_window({1920, 1080})) {
+        assets_init(files, ARRAY_LEN(files), nullptr);
+        gl_init();
+        glViewport(0, 0, 1920, 1080);
+        emscripten_request_animation_frame_loop(loop_loading_check, nullptr);
+    } else {
+        browser_alert("Could not make webgl window");
+    }
 }
+#endif
 
 #if 0
 #include "src/handles.hpp"
@@ -42,26 +134,28 @@ int main() {
     handle_pool_t pool;
     {
     profile(1);
-    handle_pool_create(&pool, 32768, 0b0111);
+    pool = handle_pool_create(32768, 0b0111);
     }
 
     handle_t handles[32768] = {};
 
     rand64_state rng_state{0xdeadbeef};
-    u64 *rngs = (u64 *)malloc(sizeof(u64) * 1 << 20);;
+    u64 *rngs = (u64 *)global_ctx->alloc(sizeof(u64) * 1 << 14);;
 
     {
-        profile(1 << 20);
+        profile(1 << 14);
 
-        for( int i = 0; i < (1 << 20); i++) {
+        for( int i = 0; i < (1 << 14); i++) {
             rngs[i] = rand64(&rng_state);
         }
     }
+#if 0
     {
-        for (int i = 0; i < (1 << 20); i++) {
-            printf("%lu\n", rngs[i]);
+        for (int i = 0; i < (1 << 14); i++) {
+            printf("%llu\n", rngs[i]);
         }
     }
+#endif
 
     {
         profile(32768);
@@ -70,6 +164,7 @@ int main() {
             handles[i] = handle_index_create(&pool);
         }
     }
+#if 0
     {
         for (int i = 0; i < 32768; i++) {
             printBinary(handles[i]);
@@ -80,6 +175,7 @@ int main() {
             putchar('\n');
         }
     }
+#endif
 
     {
         profile(32768 * 32);

@@ -2,15 +2,18 @@
 
 #ifdef __linux__
 
+#include "src/util.hpp"
+
+#if 0
 #include "src/alloc_ctx.hpp"
 #include "src/string.hpp"
 #include <stdio.h>
 
-static async read_entire_file(const char *filename) {
-    FILE *f = fopen(filename, "rb");
+static string read_entire_file(string_view filename) {
+    FILE *f = fopen(filename.data(), "rb");
     if (f == nullptr) {
-        fprintf(stderr, "Could not open '%s'", filename);
-        return {nullptr, 0};
+        fprintf(stderr, "Could not open '%s'", filename.data());
+        return string_make();
     }
     defer(fclose(f));
 
@@ -18,23 +21,27 @@ static async read_entire_file(const char *filename) {
     long fsize = ftell(f);
     rewind(f);
 
-    char *s = (char *)global_ctx->alloc(fsize + 1);
-    fread(s, fsize, 1, f);
+    auto [str, ptr] = string_make(fsize);
 
-    s[fsize] = 0;
+    fread(ptr, fsize, 1, f);
 
-    return {s, (u64)fsize};
+    ptr[fsize] = 0;
+
+    return str;
 }
 
-static void read_entire_file_free(str *file) {
-    assert(file);
-    assert(file->s);
-
-    global_ctx->free(file->s);
-    file->s = nullptr;
-    file->len = 0;
+static void read_entire_file_free(string *file) {
+    string_destroy(file);
 }
+
+#endif
 
 #define resource_get_path(file) ("res/" file)
+
+typedef u64 high_frequency_timer_t;
+
+static high_frequency_timer_t get_high_frequency_time() {
+    return __builtin_ia32_rdtsc();
+}
 
 #endif

@@ -23,6 +23,9 @@ typedef u16 handle_id_t;
 typedef u16 handle_t;
 #endif
 
+#define TYPE_TEXTURES 0b0001
+#define TYPE_MODELS 0b0010
+
 struct handle_pool_t {
     size_t len;
     span<u64> available_handles;
@@ -34,7 +37,8 @@ struct handle_pool_t {
 #endif
 };
 
-static void handle_pool_create(handle_pool_t *pool, u16 number_members, handle_type_t type) {
+static handle_pool_t handle_pool_create(u16 number_members, handle_type_t type) {
+    handle_pool_t pool;
     // i don't want to deal with the additional logic this would require for
     // checking available_handles
     assert(number_members % 64 == 0);
@@ -44,13 +48,13 @@ static void handle_pool_create(handle_pool_t *pool, u16 number_members, handle_t
     u64 *handle_allocation = (u64 *)global_ctx->alloc(handle_size);
     memset(handle_allocation, 0xff, handle_size);
 
-    pool->available_handles = {handle_allocation, handle_len};
-    pool->handle_cursor = 0;
-    pool->len = number_members;
+    pool.available_handles = {handle_allocation, handle_len};
+    pool.handle_cursor = 0;
+    pool.len = number_members;
 
 #ifdef SLOW
     assert(most_significant_bit(type) < 4);
-    pool->type_shifted = type << 16;
+    pool.type_shifted = type << 16;
 
     handle_id_t *id_allocations =
         (handle_id_t *)global_ctx->alloc(number_members * sizeof(handle_id_t));
@@ -61,8 +65,10 @@ static void handle_pool_create(handle_pool_t *pool, u16 number_members, handle_t
     for (size_t i = 0; i < u64_ids_len; i++) {
         u64_ids[i] = rand64(&state);
     }
-    pool->handle_ids = {id_allocations, number_members};
+    pool.handle_ids = {id_allocations, number_members};
 #endif
+
+    return pool;
 }
 
 static void handle_pool_destroy(handle_pool_t *pool) {

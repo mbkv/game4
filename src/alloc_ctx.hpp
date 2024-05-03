@@ -36,7 +36,7 @@ static void *arena_alloc(arena_t *arena, size_t bytes_requested) {
     const size_t total_size_after_allocation =
         arena->_arena - arena->_start + bytes_requested;
     if (total_size_after_allocation > arena->arena_size) {
-        fprintf(stderr, "Arena allocator %p is out of memory", arena);
+        fprintf(stderr, "Arena allocator %p is out of memory\n", arena);
         return nullptr;
     }
 
@@ -107,15 +107,18 @@ static void *global_arena_realloc(void *ptr, size_t size) {
 
 static void global_arena_debug() { arena_debug(&global_arena_ctx); }
 
-static allocator_t temp_allocator{global_arena_alloc, global_arena_calloc,
+static const allocator_t temp_allocator{global_arena_alloc, global_arena_calloc,
                                   global_arena_realloc, global_arena_free};
 
+static const allocator_t real_allocator{malloc, calloc, realloc, free};
+
 struct global_context : allocator_t {
-    allocator_t temp;
+    const allocator_t real;
+    const allocator_t temp;
 };
 
-const global_context _alloc_ctx{{malloc, calloc, realloc, free}, temp_allocator};
-const global_context _temp_ctx{{temp_allocator}, temp_allocator};
+const global_context _alloc_ctx{{real_allocator}, real_allocator, temp_allocator};
+const global_context _temp_ctx{{temp_allocator}, real_allocator, temp_allocator};
 
 static bool _global_ctx_is_temporary = false;
 static global_context const *global_ctx = &_alloc_ctx;

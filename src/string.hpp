@@ -3,6 +3,7 @@
 #include "src/alloc_ctx.hpp"
 #include "src/util.hpp"
 #include "stringzilla.h"
+#include <compare>
 #include <stdio.h>
 
 // so annoyed at needing this for the forward definition of std::hash...
@@ -13,35 +14,38 @@ static sz_memory_allocator_t sz_allocator{
     .free = [](void *ptr, size_t, void *) { return global_ctx->free(ptr); },
 };
 
-constexpr static size_t my_strlen(const char *s) {
-    const char *p = s;
-    while (*p)
-        p++;
-    return p - s;
-}
-
-template <typename char_type> struct _string_slice {
-    char_type *_string;
-    size_t _length;
-
-    constexpr _string_slice() : _string(nullptr), _length(0) {}
-    constexpr _string_slice(char_type *s) : _string(s), _length(my_strlen(s)) {}
-    constexpr _string_slice(char_type *s, size_t len) : _string(s), _length(len) {}
-
-    // some helper functions to avoid needing to get _inner
-    constexpr char_type *data() const { return _string; }
-    constexpr char_type *begin() const { return _string; }
-    constexpr char_type *end() const { return _string + _length; }
-    constexpr const char_type *cbegin() const { return _string; }
-    constexpr const char_type *cend() const { return _string + _length; }
-    constexpr size_t len() const { return _length; }
-    constexpr size_t size() const { return _length; }
-
-    constexpr char_type &operator[](size_t pos) { return this->data()[pos]; }
-};
+template <typename char_type> struct _string_slice;
 
 using string_view = _string_slice<const char>;
 using string_span = _string_slice<char>;
+
+template <typename char_type> struct _string_slice {
+    char_type *start;
+    size_t length;
+
+    constexpr _string_slice() : start(nullptr), length(0) {}
+    constexpr _string_slice(char_type *s) : start(s), length(strlen(s)) {}
+    constexpr _string_slice(char_type *s, size_t len) : start(s), length(len) {}
+
+    // some helper functions to avoid needing to get _inner
+    constexpr char_type *data() const { return start; }
+    constexpr char_type *begin() const { return start; }
+    constexpr char_type *end() const { return start + length; }
+    constexpr const char_type *cbegin() const { return start; }
+    constexpr const char_type *cend() const { return start + length; }
+    constexpr size_t len() const { return length; }
+    constexpr size_t size() const { return length; }
+
+    constexpr char_type &operator[](size_t pos) { return this->data()[pos]; }
+
+    constexpr bool operator==(string_view other) const {
+        return len() == other.len() && sz_equal(begin(), other.begin(), len());
+    }
+    constexpr bool operator!=(string_view other) const { return !operator==(other); }
+
+    constexpr operator string_view() { return string_view{start, length}; }
+    constexpr string_view view() { return string_view(*this); }
+};
 
 struct string {
     sz_string_t _inner;
@@ -56,6 +60,19 @@ struct string {
     constexpr const char *cend() const { return view().end(); }
     constexpr size_t len() const { return view().len(); }
     constexpr size_t size() const { return view().size(); }
+
+    constexpr bool operator==(string_view other) { return view() == other; }
+    constexpr bool operator!=(string_view other) { return view() != other; }
+    constexpr bool operator==(string other) { return view() == other.view(); }
+    constexpr bool operator!=(string other) { return view() != other.view(); }
+
+    char *resize(size_t length) {
+        if (len() >= length) {
+            return data();
+        }
+
+        return sz_string_reserve(&_inner, length, &sz_allocator);
+    }
 
     constexpr operator string_view() const {
         char *ptr;
@@ -78,7 +95,7 @@ struct string {
     constexpr char &operator[](size_t pos) { return this->data()[pos]; }
 };
 
-static inline string string_make(string_view view) {
+static string string_make(string_view view) {
     string str;
 
     char *ptr = sz_string_init_length(&str._inner, view.len(), &sz_allocator);
@@ -95,6 +112,26 @@ static string string_make(const char *s, size_t length) {
 
 static string string_make(const char *s) {
     return string_make(string_view(s, strlen(s)));
+}
+static string string_make() {
+    string str;
+
+    sz_string_init(&str._inner);
+
+    return str;
+}
+
+struct string_with_begin_ptr {
+    string str;
+    char *ptr;
+};
+
+static string_with_begin_ptr string_make(size_t length) {
+    string str;
+
+    char *ptr = sz_string_init_length(&str._inner, length, &sz_allocator);
+
+    return {str, ptr};
 }
 
 constexpr static void string_destroy(string *str) {
@@ -155,21 +192,28 @@ static string str_join(string_view join_arg, string_view const *views, size_t le
         to += views[i].len();
     }
 
-
     return str;
 }
 
 #define str_concat_inline(...)                                                         \
     str_concat((string_view[]){__VA_ARGS__}, ARRAY_LEN(((string_view[]){__VA_ARGS__})))
 
-#define str_join_inline(joined_by, ...)                                                         \
-    str_join(joined_by, (string_view[]){__VA_ARGS__}, ARRAY_LEN(((string_view[]){__VA_ARGS__})))
-
+#define str_join_inline(joined_by, ...)                                                \
+    str_join(joined_by, (string_view[]){__VA_ARGS__},                                  \
+             ARRAY_LEN(((string_view[]){__VA_ARGS__})))
 
 template <> struct std::hash<::string_view> {
-    size_t operator()(::string_view str) { return sz_hash(str.begin(), str.len()); }
+    size_t operator()(const ::string_view &str) const {
+        size_t hashed = sz_hash(str.begin(), str.len());
+
+        return hashed;
+    }
 };
 
 template <> struct std::hash<::string> {
-    size_t operator()(::string str) { return sz_hash(str.begin(), str.len()); }
+    size_t operator()(const ::string &str) const {
+        size_t hashed = sz_hash(str.begin(), str.len());
+
+        return hashed;
+    }
 };
