@@ -1,11 +1,11 @@
 #if 1
-#include <emscripten/emscripten.h>
 #include "src/assets.hpp"
 #include "src/async.hpp"
 #include "src/gl.hpp"
 #include "src/os.hpp"
 #include "vendor/linalg.h"
 #include <emscripten.h>
+#include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
 #include <emscripten/html5_webgl.h>
 #include <src/string.hpp>
@@ -25,8 +25,8 @@ EM_JS(f32, canvas_set_size_properly, (const char *s, f32 x, f32 y), {
     const canvas = document.querySelector(UTF8ToString(s, Infinity));
     canvas.width = x;
     canvas.height = y;
-    canvas.style.width = `${x / window.devicePixelRatio}px`;
-    canvas.style.height = `${y / window.devicePixelRatio}px`;
+    canvas.style.width = x / window.devicePixelRatio + 'px';
+    canvas.style.height = y / window.devicePixelRatio + 'px';
 })
 
 EM_JS(void, browser_alert, (const char *s), {alert(UTF8ToString(s, Infinity))})
@@ -96,7 +96,6 @@ int main() {
                            (resource_get_path("shaders/game.vs")),
                            (resource_get_path("shaders/ui.fs")),
                            (resource_get_path("shaders/ui.vs"))};
-
 
     if (make_window({1920, 1080})) {
         assets_init(files, ARRAY_LEN(files), nullptr);
