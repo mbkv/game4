@@ -5,12 +5,12 @@
 
 #define BIT_SIZE(T) sizeof(T) * CHAR_BIT
 
-force_inline u64 fill_least_bits(u8 bits) {
+static force_inline u64 fill_least_bits(u8 bits) {
     u64 value = (1ull << bits) - 1;
     return value;
 }
 
-force_inline u8 most_significant_bit(u64 value) {
+static force_inline u8 most_significant_bit(u64 value) {
     if (value == 0) {
         return -1;
     }
@@ -20,7 +20,7 @@ force_inline u8 most_significant_bit(u64 value) {
     return total_bits - leading_bits - 1;
 }
 
-force_inline u8 least_significant_bit(u64 value) {
+static force_inline u8 least_significant_bit(u64 value) {
     if (value == 0) {
         return 64;
     }

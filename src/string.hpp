@@ -1,6 +1,7 @@
 #pragma once
 
 #include "src/alloc_ctx.hpp"
+#include "src/datastructures.hpp"
 #include "src/util.hpp"
 #include "stringzilla.h"
 #include <compare>
@@ -23,48 +24,48 @@ template <typename char_type> struct _string_slice {
     char_type *start;
     size_t length;
 
-    constexpr _string_slice() : start(nullptr), length(0) {}
-    constexpr _string_slice(char_type *s) : start(s), length(strlen(s)) {}
-    constexpr _string_slice(char_type *s, size_t len) : start(s), length(len) {}
+    _string_slice() : start(nullptr), length(0) {}
+    _string_slice(char_type *s) : start(s), length(strlen(s)) {}
+    _string_slice(char_type *s, size_t len) : start(s), length(len) {}
 
     // some helper functions to avoid needing to get _inner
-    constexpr char_type *data() const { return start; }
-    constexpr char_type *begin() const { return start; }
-    constexpr char_type *end() const { return start + length; }
-    constexpr const char_type *cbegin() const { return start; }
-    constexpr const char_type *cend() const { return start + length; }
-    constexpr size_t len() const { return length; }
-    constexpr size_t size() const { return length; }
+    char_type *data() const { return start; }
+    char_type *begin() const { return start; }
+    char_type *end() const { return start + length; }
+    const char_type *cbegin() const { return start; }
+    const char_type *cend() const { return start + length; }
+    size_t len() const { return length; }
+    size_t size() const { return length; }
 
-    constexpr char_type &operator[](size_t pos) { return this->data()[pos]; }
+    char_type &operator[](size_t pos) { return this->data()[pos]; }
 
-    constexpr bool operator==(string_view other) const {
-        return len() == other.len() && sz_equal(begin(), other.begin(), len());
+    bool operator==(string_view other) const {
+        return this->length == other.length && sz_equal(begin(), other.begin(), this->length);
     }
-    constexpr bool operator!=(string_view other) const { return !operator==(other); }
+    bool operator!=(string_view other) const { return !operator==(other); }
 
-    constexpr operator string_view() { return string_view{start, length}; }
-    constexpr string_view view() { return string_view(*this); }
+    operator string_view() { return string_view{start, length}; }
+    string_view view() { return string_view(*this); }
 };
 
 struct string {
     sz_string_t _inner;
 
-    constexpr string_view view() const { return string_view(*this); }
-    constexpr string_span span() const { return string_span(*this); }
+    string_view view() const { return string_view(*this); }
+    string_span span() const { return string_span(*this); }
 
-    constexpr char *data() const { return span().begin(); }
-    constexpr char *begin() const { return span().begin(); }
-    constexpr char *end() const { return span().end(); }
-    constexpr const char *cbegin() const { return view().begin(); }
-    constexpr const char *cend() const { return view().end(); }
-    constexpr size_t len() const { return view().len(); }
-    constexpr size_t size() const { return view().size(); }
+    char *data() const { return span().begin(); }
+    char *begin() const { return span().begin(); }
+    char *end() const { return span().end(); }
+    const char *cbegin() const { return view().begin(); }
+    const char *cend() const { return view().end(); }
+    size_t len() const { return view().len(); }
+    size_t size() const { return view().size(); }
 
-    constexpr bool operator==(string_view other) { return view() == other; }
-    constexpr bool operator!=(string_view other) { return view() != other; }
-    constexpr bool operator==(string other) { return view() == other.view(); }
-    constexpr bool operator!=(string other) { return view() != other.view(); }
+    bool operator==(string_view other) { return view() == other; }
+    bool operator!=(string_view other) { return view() != other; }
+    bool operator==(string other) { return view() == other.view(); }
+    bool operator!=(string other) { return view() != other.view(); }
 
     char *resize(size_t length) {
         if (len() >= length) {
@@ -74,7 +75,7 @@ struct string {
         return sz_string_reserve(&_inner, length, &sz_allocator);
     }
 
-    constexpr operator string_view() const {
+    operator string_view() const {
         char *ptr;
         size_t length;
 
@@ -83,7 +84,7 @@ struct string {
         return string_view{ptr, length};
     }
 
-    constexpr operator string_span() const {
+    operator string_span() const {
         char *ptr;
         size_t length;
 
@@ -92,7 +93,7 @@ struct string {
         return string_span{ptr, length};
     }
 
-    constexpr char &operator[](size_t pos) { return this->data()[pos]; }
+    char &operator[](size_t pos) { return this->data()[pos]; }
 };
 
 static string string_make(string_view view) {
@@ -134,16 +135,16 @@ static string_with_begin_ptr string_make(size_t length) {
     return {str, ptr};
 }
 
-constexpr static void string_destroy(string *str) {
+static void string_destroy(string *str) {
     sz_string_free(&str->_inner, &sz_allocator);
 }
 
-constexpr force_inline bool str_starts_with(string_view str, string_view prefix) {
+static force_inline bool str_starts_with(string_view str, string_view prefix) {
     return str.len() >= prefix.len() &&
            sz_equal(str.begin(), prefix.begin(), prefix.len());
 }
 
-constexpr force_inline bool str_ends_with(string_view str, string_view prefix) {
+static force_inline bool str_ends_with(string_view str, string_view prefix) {
     return str.len() >= prefix.len() &&
            sz_equal(str.end() - prefix.len(), prefix.begin(), prefix.len());
 }
@@ -193,6 +194,45 @@ static string str_join(string_view join_arg, string_view const *views, size_t le
     }
 
     return str;
+}
+
+struct string_builder {
+    vector<string_view> vec;
+    size_t byte_length;
+
+    void append(string_view view) {
+        vec.append(view);
+        byte_length += view.len();
+    }
+
+    string str() {
+        auto [str, start] = string_make(this->byte_length);
+
+        char *writer = start;
+        for (string_view view : this->vec) {
+            memcpy(writer, view.begin(), view.len());
+            writer += view.len();
+        }
+
+        return str;
+    }
+
+    operator string() {
+        return this->str();
+    }
+};
+
+static string_builder string_builder_make(size_t estimated_length) {
+    string_builder builder;
+
+    builder.vec = vector_make<string_view>(estimated_length);
+    builder.byte_length = 0;
+
+    return builder;
+}
+
+static void string_builder_destroy(string_builder * builder) {
+    vector_destroy(&builder->vec);
 }
 
 #define str_concat_inline(...)                                                         \

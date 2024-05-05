@@ -2,7 +2,7 @@
 
 #include "src/alloc_ctx.hpp"
 #include "src/bits.hpp"
-#include "src/span.hpp"
+#include "src/datastructures.hpp"
 #include "src/util.hpp"
 #include "src/bits.hpp"
 #include "src/rand.hpp"

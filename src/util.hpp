@@ -21,20 +21,20 @@ typedef double f64;
 #define PI 3.141592f
 #define TAU (PI * 2)
 
-#define force_inline __attribute__((always_inline)) static inline
+#define force_inline __attribute__((always_inline)) inline
 
 #define ARRAY_LEN(x) ((sizeof((x))) / (sizeof((x)[0])))
 
-template <typename T> force_inline T max(T a, T b) { return a > b ? a : b; }
-template <typename T> force_inline T min(T a, T b) { return a < b ? a : b; }
+template <typename T> static force_inline T max(T a, T b) { return a > b ? a : b; }
+template <typename T> static force_inline T min(T a, T b) { return a < b ? a : b; }
 
-force_inline bool is_power2(u64 power2) {
+static force_inline bool is_power2(u64 power2) {
     bool is_power2 = (power2 & (power2 - 1)) == 0;
 
     return is_power2;
 }
 
-template <typename T> force_inline T roundup_by_power2(T value, u64 power2) {
+template <typename T> static force_inline T roundup_by_power2(T value, u64 power2) {
     static_assert(std::is_integral<T>());
 #if SLOW
     assert(is_power2(power2));
@@ -44,14 +44,14 @@ template <typename T> force_inline T roundup_by_power2(T value, u64 power2) {
     return value & -power2;
 }
 
-template <typename T> force_inline T divide_roundup(T value, T divisor) {
+template <typename T> static force_inline T divide_roundup(T value, T divisor) {
     static_assert(std::is_integral<T>());
     T rounded_up = (value + divisor - 1) / divisor;
 
     return rounded_up;
 }
 
-template <typename T> force_inline T clamp(T value, T a, T b) {
+template <typename T> static force_inline T clamp(T value, T a, T b) {
     if (value < a) {
         return a;
     }
@@ -76,7 +76,7 @@ template <typename F> struct defer_t {
         [&]() { code; }                                                                \
     }
 
-force_inline f32 to_radians(f32 degrees) {
+static force_inline f32 to_radians(f32 degrees) {
     f32 radians = degrees / 180.0f * PI;
     return radians;
 }
