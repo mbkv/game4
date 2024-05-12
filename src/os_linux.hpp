@@ -36,7 +36,7 @@ static void read_entire_file_free(string *file) {
 
 #endif
 
-#define resource_get_path(file) ("res/" file)
+#define res_path(file) ("res/" file)
 
 typedef u64 high_frequency_timer_t;
 

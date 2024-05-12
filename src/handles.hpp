@@ -25,6 +25,8 @@ typedef u16 handle_t;
 
 #define TYPE_TEXTURES 0b0001
 #define TYPE_MODELS 0b0010
+#define TYPE_AUDIO 0b0011
+#define TYPE_SHADER 0b0100
 
 struct handle_pool_t {
     size_t len;
@@ -45,7 +47,7 @@ static handle_pool_t handle_pool_create(u16 number_members, handle_type_t type) 
 
     size_t handle_len = (number_members / 64);
     size_t handle_size = handle_len * sizeof(u64);
-    u64 *handle_allocation = (u64 *)global_ctx->alloc(handle_size);
+    u64 *handle_allocation = (u64 *)ctx->alloc(handle_size);
     memset(handle_allocation, 0xff, handle_size);
 
     pool.available_handles = {handle_allocation, handle_len};
@@ -57,7 +59,7 @@ static handle_pool_t handle_pool_create(u16 number_members, handle_type_t type) 
     pool.type_shifted = type << 16;
 
     handle_id_t *id_allocations =
-        (handle_id_t *)global_ctx->alloc(number_members * sizeof(handle_id_t));
+        (handle_id_t *)ctx->alloc(number_members * sizeof(handle_id_t));
     u64 *u64_ids = (u64 *)id_allocations;
     size_t u64_ids_len = number_members / (sizeof(u64) / sizeof(handle_id_t));
     rand64_state state = rand64_seed(0);
@@ -72,9 +74,9 @@ static handle_pool_t handle_pool_create(u16 number_members, handle_type_t type) 
 }
 
 static void handle_pool_destroy(handle_pool_t *pool) {
-    global_ctx->free((void *)pool->available_handles.ptr);
+    ctx->free((void *)pool->available_handles.ptr);
 #ifdef SLOW
-    global_ctx->free((void *)pool->handle_ids.ptr);
+    ctx->free((void *)pool->handle_ids.ptr);
 #endif
     *pool = {};
 }

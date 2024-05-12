@@ -1,29 +1,22 @@
 #pragma once
 
-#include "src/async.hpp"
-#include "src/os.hpp"
-
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "src/alloc_ctx.hpp"
+#include "src/async.hpp"
 #include "src/handles.hpp"
+#include "src/os.hpp"
 #include "src/string.hpp"
 #include "src/util.hpp"
 
-#define FAST_OBJ_REALLOC global_ctx->realloc
-#define FAST_OBJ_FREE global_ctx->free
+#define FAST_OBJ_REALLOC ctx->realloc
+#define FAST_OBJ_FREE ctx->free
 #include "vendor/fast_obj.h"
 
-#define TINYOBJ_MALLOC global_ctx->alloc
-#define TINYOBJ_REALLOC global_ctx->realloc
-#define TINYOBJ_CALLOC global_ctx->calloc
-#define TINYOBJ_FREE global_ctx->free
-#include "vendor/tinyobj_loader_c.h"
-
-#define STBI_MALLOC global_ctx->alloc
-#define STBI_REALLOC global_ctx->realloc
-#define STBI_FREE global_ctx->free
+#define STBI_MALLOC ctx->alloc
+#define STBI_REALLOC ctx->realloc
+#define STBI_FREE ctx->free
 #include "vendor/stb_image.h"
 
 static handle_pool_t textures = handle_pool_create(1024, TYPE_TEXTURES);
@@ -41,10 +34,17 @@ static string &asset_downloaded_file_get(string_view filename) {
     return found->second;
 }
 
+#if 0
+#define TINYOBJ_MALLOC ctx->alloc
+#define TINYOBJ_REALLOC ctx->realloc
+#define TINYOBJ_CALLOC ctx->calloc
+#define TINYOBJ_FREE ctx->free
+#include "vendor/tinyobj_loader_c.h"
+
 static void _tinyobj_file_reader_impl(void *ctx, const char *filename, int is_mtl,
                                       const char *obj_filename, char **buf,
                                       size_t *len) {
-    global_ctx_temp_lock();
+    ctx_temp_lock();
 
     string_span file = asset_downloaded_file_get(filename);
 
@@ -69,6 +69,14 @@ static asset_tinyobj asset_tinyobj_parse(string_view filename) {
     return asset;
 }
 
+static void asset_cleanup(asset_tinyobj *asset) {
+    tinyobj_attrib_free(&asset->attrib);
+    tinyobj_shapes_free(asset->shapes, asset->num_shapes);
+    tinyobj_materials_free(asset->materials, asset->num_materials);
+}
+
+#endif
+
 struct _fast_obj_callback_state {
     string file;
     size_t reading_index;
@@ -77,15 +85,15 @@ struct _fast_obj_callback_state {
 const fastObjCallbacks fast_obj_callbacks{
     .file_open =
         [](const char *path, void *user_data) {
-            _fast_obj_callback_state *state =
-                (_fast_obj_callback_state *)global_ctx->temp.alloc(
-                    sizeof(_fast_obj_callback_state));
+            auto *state = allocate<_fast_obj_callback_state>();
 
             state->file = asset_downloaded_file_get(path);
 
             return (void *)state;
         },
-    .file_close = [](void *file, void *user_data) {},
+    .file_close = [](void *file, void *user_data) {
+        ctx->free(file);
+    },
     .file_read =
         [](void *file, void *dst, size_t bytes, void *user_data) {
             _fast_obj_callback_state *state = (_fast_obj_callback_state *)file;
@@ -93,6 +101,8 @@ const fastObjCallbacks fast_obj_callbacks{
 
             char *string = state->file.begin() + state->reading_index;
             sz_copy((char *)dst, string, bytes_to_write);
+
+            state->reading_index += bytes_to_write;
 
             return bytes_to_write;
         },
@@ -103,16 +113,10 @@ const fastObjCallbacks fast_obj_callbacks{
         }};
 
 static fastObjMesh *asset_fastobj_parse(string_view filename) {
-    return fast_obj_read(filename.begin());
+    return fast_obj_read_with_callbacks(filename.begin(), &fast_obj_callbacks, nullptr);
 }
 
 static void asset_cleanup(fastObjMesh *mesh) { fast_obj_destroy(mesh); }
-
-static void asset_cleanup(asset_tinyobj &asset) {
-    tinyobj_attrib_free(&asset.attrib);
-    tinyobj_shapes_free(asset.shapes, asset.num_shapes);
-    tinyobj_materials_free(asset.materials, asset.num_materials);
-}
 
 struct asset_image {
     u8 *data;
@@ -122,7 +126,7 @@ struct asset_image {
 };
 
 static asset_image asset_image_load_rgb(string_view filename) {
-    global_ctx_temp_lock();
+    ctx_temp_lock();
     string file = asset_downloaded_file_get(filename);
     stbi_set_flip_vertically_on_load(true);
 
@@ -147,7 +151,7 @@ static void asset_image_destroy(asset_image *img) {
 
 struct _assets_download_data {
     size_t running_downloads = 0;
-    promise *next;
+    promise<void> *next;
 };
 
 static size_t total_running_downloads = 0;
@@ -155,9 +159,8 @@ static size_t total_running_downloads = 0;
 static void asset_process(string_view filename, string file) {}
 
 static void assets_download(string_view *assets_to_download, size_t asset_len,
-                            promise *next) {
-    _assets_download_data *my_data =
-        (_assets_download_data *)real_allocator.alloc(sizeof(_assets_download_data));
+                            promise<void> *next) {
+    _assets_download_data *my_data = allocate<_assets_download_data>(real_allocator.alloc);
     total_running_downloads += asset_len;
     my_data->running_downloads = asset_len;
     my_data->next = next;
@@ -170,8 +173,9 @@ static void assets_download(string_view *assets_to_download, size_t asset_len,
         total_running_downloads -= 1;
         my_data->running_downloads -= 1;
         if (my_data->running_downloads == 0) {
-            if (my_data->next && my_data->next->then) {
-                my_data->next->then->operator()();
+            if (my_data->next) {
+                fprintf(stderr, "%p\n %p\n", my_data->next, my_data->next->fn);
+                my_data->next->operator()();
             }
             real_allocator.free(my_data);
         }
@@ -187,6 +191,6 @@ static void assets_download(string_view *assets_to_download, size_t asset_len,
     }
 }
 
-static void assets_init(string_view *assets, size_t assets_len, promise *then) {
+static void assets_init(string_view *assets, size_t assets_len, promise<void> *then) {
     assets_download(assets, assets_len, then);
 }

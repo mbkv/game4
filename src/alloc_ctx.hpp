@@ -5,13 +5,6 @@
 #include <malloc.h>
 #include <stdio.h>
 
-struct allocator_t {
-    void *(*alloc)(size_t);
-    void *(*calloc)(size_t, size_t);
-    void *(*realloc)(void *, size_t);
-    void (*free)(void *);
-};
-
 #define MAX_TEMP_ALLOC_SIZE (1024 * 1024 * 16)
 
 struct arena_t {
@@ -107,6 +100,13 @@ static void *global_arena_realloc(void *ptr, size_t size) {
 
 static void global_arena_debug() { arena_debug(&global_arena_ctx); }
 
+struct allocator_t {
+    void *(*alloc)(size_t);
+    void *(*calloc)(size_t, size_t);
+    void *(*realloc)(void *, size_t);
+    void (*free)(void *);
+};
+
 static const allocator_t temp_allocator{global_arena_alloc, global_arena_calloc,
                                   global_arena_realloc, global_arena_free};
 
@@ -120,30 +120,46 @@ struct global_context : allocator_t {
 const global_context _alloc_ctx{{real_allocator}, real_allocator, temp_allocator};
 const global_context _temp_ctx{{temp_allocator}, real_allocator, temp_allocator};
 
-static bool _global_ctx_is_temporary = false;
-static global_context const *global_ctx = &_alloc_ctx;
+static bool _ctx_is_temporary = false;
+static global_context const *ctx = &_alloc_ctx;
 
-static void _global_ctx_noop() {}
-static void global_ctx_set_default() {
-    _global_ctx_is_temporary = false;
-    global_ctx = &_alloc_ctx;
+static void _ctx_noop() {}
+static void ctx_set_default() {
+    _ctx_is_temporary = false;
+    ctx = &_alloc_ctx;
 }
 
-static void global_ctx_set_temporary() {
-    _global_ctx_is_temporary = true;
-    global_ctx = &_temp_ctx;
+static void ctx_set_temporary() {
+    _ctx_is_temporary = true;
+    ctx = &_temp_ctx;
 }
 
-static defer_t<void (*)()> _global_ctx_temp_lock() {
-    if (_global_ctx_is_temporary) {
-        return defer_t{_global_ctx_noop};
+static defer_t<void (*)()> _ctx_temp_lock() {
+    if (_ctx_is_temporary) {
+        return defer_t{_ctx_noop};
     }
 
-    _global_ctx_is_temporary = true;
-    global_ctx = &_temp_ctx;
+    _ctx_is_temporary = true;
+    ctx = &_temp_ctx;
 
-    return defer_t{global_ctx_set_default};
+    return defer_t{ctx_set_default};
 }
 
-#define global_ctx_temp_lock()                                                    \
-    auto UNIQUE_VARIABLE_NAME(scoped_temporary) = _global_ctx_temp_lock()
+#define ctx_temp_lock()                                                    \
+    auto UNIQUE_VARIABLE_NAME(scoped_temporary) = _ctx_temp_lock()
+
+template <typename T>
+force_inline T *allocate(void *(*alloc)(size_t) = ctx->alloc) {
+    return (T*)alloc(sizeof(T));
+}
+
+template <typename T1, typename T2>
+force_inline pair<T1*, T2*> allocate(void *(*alloc)(size_t) = ctx->alloc) {
+    uintptr_t ptr = (uintptr_t) alloc(sizeof(T1) + sizeof(T2));
+    
+    T1 *t1 = (T1*) ptr;
+    T2 *t2 = (T2*) (ptr + sizeof(T1));
+
+    return { t1, t2 };
+}
+

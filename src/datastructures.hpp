@@ -19,7 +19,7 @@ template <typename T> struct vector {
         if (this->len >= this->capacity) {
             size_t new_capacity = this->capacity * 2;
             this->capacity = new_capacity;
-            this->data = (T *)global_ctx->realloc(this->data, sizeof(T) * new_capacity);
+            this->data = (T *)ctx->realloc(this->data, sizeof(T) * new_capacity);
         }
 
         this->data[this->len] = value;
@@ -31,9 +31,7 @@ template <typename T> struct vector {
         return this->data[this->len];
     }
 
-    void remove(size_t i = 0) {
-        this[i] = this->pop();
-    }
+    void remove(size_t i = 0) { this[i] = this->pop(); }
 
     T &operator[](size_t i) {
         assert(i < this->len);
@@ -43,7 +41,7 @@ template <typename T> struct vector {
 
 template <typename T> vector<T> vector_make(size_t amount) {
     vector<T> vec;
-    vec.data = (T *)global_ctx->alloc(amount * sizeof(T));
+    vec.data = (T *)ctx->alloc(amount * sizeof(T));
     vec.len = 0;
     vec.capacity = amount;
 
@@ -51,14 +49,19 @@ template <typename T> vector<T> vector_make(size_t amount) {
 };
 
 template <typename T> void vector_destroy(vector<T> *vec) {
-    global_ctx->free(vec->data);
+    ctx->free(vec->data);
     *vec = {};
 }
 
-template <typename T>
-struct span {
+template <typename T> struct span {
     T *ptr;
     size_t len;
+
+    T *begin() const { return ptr; }
+    T *end() const { return ptr + len; }
+    const T *cbegin() const { return ptr; }
+    const T *cend() const { return ptr + len; }
+    size_t size() const { return len; }
 
     T &operator[](size_t i) {
         assert(i < len);

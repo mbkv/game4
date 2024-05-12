@@ -17,13 +17,12 @@ typedef void (*error_handler)(string_view filename, void *user_data);
 struct _read_entire_file_async_user_data {
     file_reader on_success;
     error_handler on_error;
-    const char * filename;
+    const char *filename;
     void *user_data;
 };
 
 static void _read_entire_file_async_success(emscripten_fetch_t *fetch) {
-    _read_entire_file_async_user_data *my_data =
-        (_read_entire_file_async_user_data *)fetch->userData;
+    auto *my_data = (_read_entire_file_async_user_data *)fetch->userData;
 
     void *user_data = my_data->user_data;
     file_reader on_success = my_data->on_success;
@@ -32,19 +31,18 @@ static void _read_entire_file_async_success(emscripten_fetch_t *fetch) {
     size_t response_len = fetch->numBytes;
     string response = string_make(response_body, response_len);
 
-    global_ctx->free(my_data);
+    ctx->free(my_data);
     on_success(response, my_data->filename, user_data);
     emscripten_fetch_close(fetch);
 }
 
 static void _read_entire_file_async_error(emscripten_fetch_t *fetch) {
-    _read_entire_file_async_user_data *my_data =
-        (_read_entire_file_async_user_data *)fetch->userData;
+    auto *my_data = (_read_entire_file_async_user_data *)fetch->userData;
 
     void *user_data = my_data->user_data;
     error_handler on_error = my_data->on_error;
 
-    global_ctx->free(my_data);
+    ctx->free(my_data);
 
     on_error(my_data->filename, user_data);
     emscripten_fetch_close(fetch);
@@ -60,9 +58,7 @@ static void read_entire_file_async(const char *filename, file_reader on_success,
     attr.onsuccess = _read_entire_file_async_success;
     attr.onerror = _read_entire_file_async_error;
 
-    _read_entire_file_async_user_data *my_data =
-        (_read_entire_file_async_user_data *)global_ctx->alloc(
-            sizeof(_read_entire_file_async_user_data));
+    auto *my_data = allocate<_read_entire_file_async_user_data>();
     my_data->on_success = on_success;
     my_data->on_error = on_error;
     my_data->user_data = user_data;
@@ -72,10 +68,9 @@ static void read_entire_file_async(const char *filename, file_reader on_success,
     emscripten_fetch(&attr, filename);
 }
 
-static void read_entire_file_async_free(string_view ptr) {
-}
+static void read_entire_file_async_free(string_view ptr) {}
 
-#define resource_get_path(file) ("/res/" file)
+#define res_path(file) ("/res/" file)
 
 typedef double high_frequency_timer_t;
 

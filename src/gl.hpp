@@ -8,31 +8,14 @@
 #include "src/alloc_ctx.hpp"
 #include "src/assets.hpp"
 #include "src/os.hpp"
+#include "src/string.hpp"
 #include "src/util.hpp"
 
 static void gl_init() {
     glClearColor(220.0 / 255.0, 220.0 / 255.0, 255.0 / 255.0, 1.0);
     glEnable(GL_DEPTH_TEST);
-    // glEnable(GL_CULL_FACE);
-    // glCullFace(GL_BACK);
-}
-
-typedef std::unordered_map<std::string, GLint> Uniforms;
-
-static void gl_get_all_uniform_locations(GLuint program, Uniforms *uniforms) {
-    GLint num_uniforms;
-    glGetProgramiv(program, GL_ACTIVE_UNIFORMS, &num_uniforms);
-
-    GLchar name_data[256];
-    for (int uniform = 0; uniform < num_uniforms; ++uniform) {
-        GLint array_size = 0;
-        GLenum type = 0;
-        GLsizei actual_length = 0;
-        glGetActiveUniform(program, uniform, 256, &actual_length, &array_size, &type,
-                           name_data);
-        GLint location = glGetUniformLocation(program, name_data);
-        (*uniforms)[name_data] = location;
-    }
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
 }
 
 struct gl_draw_object {
@@ -48,7 +31,7 @@ static void gl_asset_draw(gl_draw_object *asset) {
 }
 
 static gl_draw_object gl_asset_load(string_view filename) {
-    global_ctx_temp_lock();
+    ctx_temp_lock();
 
     gl_draw_object mesh;
     fastObjMesh *objmesh = asset_fastobj_parse(filename);
@@ -60,9 +43,9 @@ static gl_draw_object gl_asset_load(string_view filename) {
     }
 
     f32 *vertex_buffer =
-        (f32 *)global_ctx->temp.alloc(objmesh->index_count * sizeof(f32) * 5);
+        (f32 *)ctx->temp.alloc(objmesh->index_count * sizeof(f32) * 5);
     u32 *index_buffer =
-        (u32 *)global_ctx->temp.alloc(objmesh->index_count * sizeof(u32));
+        (u32 *)ctx->temp.alloc(objmesh->index_count * sizeof(u32));
 
     for (u32 i = 0; i < objmesh->index_count; i++) {
         fastObjIndex indexes = objmesh->indices[i];
@@ -140,7 +123,6 @@ static gl_draw_object gl_ui_rect_load(ui_rect rect, ui_rect text_rect) {
 
     glGenBuffers(1, &VBO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    emscripten_debugger();
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
     glGenBuffers(1, &EBO);
@@ -148,7 +130,7 @@ static gl_draw_object gl_ui_rect_load(ui_rect rect, ui_rect text_rect) {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indexes), indexes, GL_STATIC_DRAW);
 
     // Define vertex attributes
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), nullptr);
     glEnableVertexAttribArray(0);
 
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
@@ -178,10 +160,19 @@ static GLuint gl_texture_load(asset_image *img) {
     return texture;
 }
 
-static GLuint gl_shader_load(string_view vs, string_view fs) {
-    global_ctx_temp_lock();
+typedef std::unordered_map<string_view, GLint> Uniforms;
+
+struct gl_program {
+    GLuint program;
+    Uniforms uniforms;
+};
+
+static gl_program gl_shader_load(string_view vs_filename, string_view fs_filename) {
     // Shader program handle
     GLuint program;
+    Uniforms uniforms;
+    string_view vs = asset_downloaded_file_get(vs_filename);
+    string_view fs = asset_downloaded_file_get(fs_filename);
 
     // Load and compile vertex shader
     GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
@@ -221,7 +212,7 @@ static GLuint gl_shader_load(string_view vs, string_view fs) {
             max_length = max(max_length, log_length);
         }
 
-        char *log = (char *)global_ctx->alloc(max_length);
+        char *log = (char *)ctx->temp.alloc(max_length);
 
         glGetProgramInfoLog(program, max_length, &log_length, log);
         fprintf(stderr, "Shader error!!!:\n");
@@ -240,5 +231,33 @@ static GLuint gl_shader_load(string_view vs, string_view fs) {
     glDeleteShader(vertex_shader);
     glDeleteShader(fragment_shader);
 
-    return program;
+    GLint num_uniforms;
+    glGetProgramiv(program, GL_ACTIVE_UNIFORMS, &num_uniforms);
+
+    GLchar name_data[256];
+    for (int uniform = 0; uniform < num_uniforms; uniform++) {
+        GLint array_size = 0;
+        GLenum type = 0;
+        GLsizei actual_length = 0;
+        glGetActiveUniform(program, uniform, 256, &actual_length, &array_size, &type,
+                           name_data);
+        GLint location = glGetUniformLocation(program, name_data);
+        string name_str = string_make(name_data, actual_length);
+        uniforms[name_str] = location;
+    }
+
+    return {program, uniforms};
+}
+
+static void gl_shader_destory(gl_program *p) {
+    glDeleteShader(p->program);
+
+    // TODO(mike): fix
+#if 0
+    for (auto &it : p->uniforms) {
+        /* string non_const = it.first; */
+        /* string_destroy(&non_const); */
+    }
+#endif
+    p->uniforms.clear();
 }

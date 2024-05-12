@@ -1,42 +1,42 @@
 CXX = clang++
 
 CXXFLAGS = -std=c++2b \
+		 -Wno-unknown-pragmas \
+         -DFAST_OBJ_IMPLEMENTATION \
+         -DSLOW \
+         -DSTB_IMAGE_IMPLEMENTATION \
+         -DTINYOBJ_LOADER_C_IMPLEMENTATION \
          -I$(CURDIR) \
 		 -I$(CURDIR)/vendor \
          -Wall \
-         -Wno-unused-parameter \
          -Wno-unused-function \
-		 -Wno-unknown-pragmas \
-         -DTINYOBJ_LOADER_C_IMPLEMENTATION \
-         -DSTB_IMAGE_IMPLEMENTATION \
-         -DFAST_OBJ_IMPLEMENTATION \
-         -msse4.2 \
-         -ffast-math \
+         -Wno-unused-parameter \
          -fassociative-math \
+         -ffast-math \
+         -fno-asynchronous-unwind-tables \
          -fno-exceptions \
          -fno-unwind-tables \
-         -fno-asynchronous-unwind-tables \
          -fvisibility=hidden \
-         -DSLOW
+         -msse4.2
 
 CXXFLAGS_DEBUG = -O0 \
-               -g3 \
-               -DDEBUG
+                 -g3 \
+                 -DDEBUG
 
 EMCC_FLAGS = --use-port=sdl2 \
-			 -s USE_WEBGL2=1 \
-			 -mrelaxed-simd \
-			 -sFETCH \
 			 -gsource-map \
-			 -sSTACK_SIZE=1048576 \
+			 -mrelaxed-simd \
 			 -sALLOW_MEMORY_GROWTH \
 			 -sENVIRONMENT=web \
+			 -sFETCH \
+			 -sGL_ASSERTIONS=1 \
+			 -sGL_ENABLE_GET_PROC_ADDRESS=0 \
+			 -sMALLOC=emmalloc-debug \
 			 -sMAX_WEBGL_VERSION=2 \
 			 -sMIN_WEBGL_VERSION=2 \
-			 -sMALLOC=emmalloc-debug \
+			 -sSTACK_SIZE=1048576 \
 			 -sUSE_CLOSURE_COMPILER=1 \
-			 -sGL_ASSERTIONS=1 \
-			 -sGL_ENABLE_GET_PROC_ADDRESS=0
+			 -sUSE_WEBGL2=1
 
 include_files := $(wildcard src/*.hpp)
 

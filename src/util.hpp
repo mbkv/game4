@@ -80,3 +80,9 @@ static force_inline f32 to_radians(f32 degrees) {
     f32 radians = degrees / 180.0f * PI;
     return radians;
 }
+
+template <typename T1, typename T2> struct pair {
+    T1 first;
+    T2 second;
+};
+

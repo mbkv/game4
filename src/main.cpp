@@ -19,6 +19,12 @@ typedef linalg::vec<f32, 2> vec2;
 typedef linalg::vec<f32, 3> vec3;
 typedef linalg::mat<f32, 4, 4> mat4;
 
+vec2 window_size{1920, 1080};
+mat4 camera = linalg::lookat_matrix(vec3{-3, 3, -3}, vec3{0, 0, 0}, vec3{0, 1, 0});
+mat4 position = linalg::identity_t{4};
+mat4 projection =
+    linalg::perspective_matrix(to_radians(45.0f), 1920.0f / 1080.0f, 0.1f, 100.0f);
+
 EMSCRIPTEN_WEBGL_CONTEXT_HANDLE webgl;
 
 EM_JS(f32, canvas_set_size_properly, (const char *s, f32 x, f32 y), {
@@ -33,11 +39,13 @@ EM_JS(void, browser_alert, (const char *s), {alert(UTF8ToString(s, Infinity))})
 
 static const string_view canvas_selector{"#canvas"};
 
-static bool make_window(vec2 window_size) {
+static bool make_window() {
     canvas_set_size_properly(canvas_selector.begin(), window_size.x, window_size.y);
 
     EmscriptenWebGLContextAttributes attrs;
     emscripten_webgl_init_context_attributes(&attrs);
+    attrs.majorVersion = 2;
+    attrs.minorVersion = 0;
 
     webgl = emscripten_webgl_create_context(canvas_selector.begin(), &attrs);
     if (!webgl) {
@@ -48,39 +56,51 @@ static bool make_window(vec2 window_size) {
     return true;
 }
 
-GLuint game_shader;
-GLuint ui_shader;
-Uniforms ui_uniforms;
+gl_program game_shader;
+gl_program ui_shader;
 
+gl_draw_object square;
 gl_draw_object cube;
 GLuint cube_texture;
 
 static EM_BOOL loop(double time, void *userData) {
+    global_arena_freeall();
+
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glUseProgram(ui_shader);
-    glUniform2f(ui_uniforms["uScreenSize"], 1920.0, 1080.0);
+    glUseProgram(game_shader.program);
     glBindTexture(GL_TEXTURE_2D, cube_texture);
+
+    glUniformMatrix4fv(game_shader.uniforms.at("uProjectionMatrix"), 1, GL_FALSE,
+                       &projection[0][0]);
+    glUniformMatrix4fv(game_shader.uniforms.at("uViewMatrix"), 1, GL_FALSE,
+                       &camera[0][0]);
+    glUniformMatrix4fv(game_shader.uniforms.at("uWorldMatrix"), 1, GL_FALSE,
+                       &position[0][0]);
     gl_asset_draw(&cube);
+
+    glUseProgram(ui_shader.program);
+    glUniform2f(ui_shader.uniforms.at("uScreenSize"), window_size.x, window_size.y);
+    glBindTexture(GL_TEXTURE_2D, cube_texture);
+    gl_asset_draw(&square);
 
     return true;
 }
 
 static EM_BOOL loop_loading_check(double time, void *userData) {
+    global_arena_freeall();
     if (total_running_downloads != 0) {
         return true;
     }
 
     game_shader =
-        gl_shader_load(asset_downloaded_file_get(resource_get_path("shaders/game.vs")),
-                       asset_downloaded_file_get(resource_get_path("shaders/game.fs")));
-    ui_shader =
-        gl_shader_load(asset_downloaded_file_get(resource_get_path("shaders/ui.vs")),
-                       asset_downloaded_file_get(resource_get_path("shaders/ui.fs")));
-    gl_get_all_uniform_locations(ui_shader, &ui_uniforms);
-    cube = gl_ui_rect_load({100.0, 100.0, 400.0, 400.0}, {0.0, 0.0, 1.0, 1.0});
+        gl_shader_load(res_path("shaders/game.vs"), res_path("shaders/game.fs"));
+    ui_shader = gl_shader_load(res_path("shaders/ui.vs"), res_path("shaders/ui.fs"));
+    cube = gl_asset_load(res_path("box textured.obj"));
 
-    asset_image img = asset_image_load_rgb(resource_get_path("box texture.png"));
+    square = gl_ui_rect_load({100., 100., 200., 200.}, {0.0, 0.0, 1.0, 1.0});
+
+    asset_image img = asset_image_load_rgb(res_path("box texture.png"));
     cube_texture = gl_texture_load(&img);
 
     emscripten_request_animation_frame_loop(loop, nullptr);
@@ -89,15 +109,13 @@ static EM_BOOL loop_loading_check(double time, void *userData) {
 }
 
 int main() {
-    string_view files[] = {(resource_get_path("box texture.png")),
-                           (resource_get_path("box textured.obj")),
-                           (resource_get_path("box textured.mtl")),
-                           (resource_get_path("shaders/game.fs")),
-                           (resource_get_path("shaders/game.vs")),
-                           (resource_get_path("shaders/ui.fs")),
-                           (resource_get_path("shaders/ui.vs"))};
+    string_view files[] = {
+        (res_path("box texture.png")),  (res_path("box textured.obj")),
+        (res_path("box textured.mtl")), (res_path("shaders/game.fs")),
+        (res_path("shaders/game.vs")),  (res_path("shaders/ui.fs")),
+        (res_path("shaders/ui.vs"))};
 
-    if (make_window({1920, 1080})) {
+    if (make_window()) {
         assets_init(files, ARRAY_LEN(files), nullptr);
         gl_init();
         glViewport(0, 0, 1920, 1080);
@@ -139,7 +157,7 @@ int main() {
     handle_t handles[32768] = {};
 
     rand64_state rng_state{0xdeadbeef};
-    u64 *rngs = (u64 *)global_ctx->alloc(sizeof(u64) * 1 << 14);;
+    u64 *rngs = (u64 *)ctx->alloc(sizeof(u64) * 1 << 14);;
 
     {
         profile(1 << 14);

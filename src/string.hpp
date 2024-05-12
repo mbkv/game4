@@ -11,8 +11,8 @@
 #include <functional>
 
 static sz_memory_allocator_t sz_allocator{
-    .allocate = [](size_t bytes, void *) { return global_ctx->alloc(bytes); },
-    .free = [](void *ptr, size_t, void *) { return global_ctx->free(ptr); },
+    .allocate = [](size_t bytes, void *) { return ctx->alloc(bytes); },
+    .free = [](void *ptr, size_t, void *) { return ctx->free(ptr); },
 };
 
 template <typename char_type> struct _string_slice;
@@ -149,25 +149,6 @@ static force_inline bool str_ends_with(string_view str, string_view prefix) {
            sz_equal(str.end() - prefix.len(), prefix.begin(), prefix.len());
 }
 
-static string str_concat(string_view *views, size_t length) {
-    string str;
-
-    size_t char_sum = 0;
-    for (size_t i = 0; i < length; i++) {
-        char_sum += views[i].len();
-    }
-
-    char *to = sz_string_init_length(&str._inner, char_sum, &sz_allocator);
-    for (size_t i = 0; i < length; i++) {
-        const char *from = views[i].data();
-        size_t from_len = views[i].len();
-        sz_copy(to, from, from_len);
-        to += from_len;
-    }
-
-    return str;
-}
-
 static string str_join(string_view join_arg, string_view const *views, size_t length) {
     string str;
 
@@ -182,14 +163,14 @@ static string str_join(string_view join_arg, string_view const *views, size_t le
     }
 
     char *to = sz_string_init_length(&str._inner, char_sum, &sz_allocator);
-    sz_copy(to, views[0].data(), views[0].len());
+    memcpy(to, views[0].data(), views[0].len());
     to += views[0].len();
 
     for (size_t i = 1; i < length; i++) {
-        sz_copy(to, join_arg.data(), join_arg.len());
+        memcpy(to, join_arg.data(), join_arg.len());
         to += join_arg.len();
 
-        sz_copy(to, views[i].data(), views[i].len());
+        memcpy(to, views[i].data(), views[i].len());
         to += views[i].len();
     }
 
@@ -222,7 +203,7 @@ struct string_builder {
     }
 };
 
-static string_builder string_builder_make(size_t estimated_length) {
+static string_builder string_builder_make(size_t estimated_length = 16) {
     string_builder builder;
 
     builder.vec = vector_make<string_view>(estimated_length);
@@ -234,6 +215,18 @@ static string_builder string_builder_make(size_t estimated_length) {
 static void string_builder_destroy(string_builder * builder) {
     vector_destroy(&builder->vec);
 }
+
+static string str_concat(string_view *views, size_t length) {
+    string_builder builder = string_builder_make();
+    defer(string_builder_destroy(&builder));
+
+    for (size_t i= 0; i < length; i++) {
+        builder.append(views[i]);
+    }
+
+    return builder.str();
+}
+
 
 #define str_concat_inline(...)                                                         \
     str_concat((string_view[]){__VA_ARGS__}, ARRAY_LEN(((string_view[]){__VA_ARGS__})))
